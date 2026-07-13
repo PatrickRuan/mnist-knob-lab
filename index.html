@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>神經網路旋鈕實驗室 — 手動調出最低誤差</title>
+<style>
+:root {
+  --surface-1: #fcfcfb;
+  --page: #f9f9f7;
+  --text-primary: #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted: #898781;
+  --grid-line: #e1e0d9;
+  --baseline: #c3c2b7;
+  --border: rgba(11,11,11,0.10);
+  --series-1: #2a78d6;      /* loss 曲線 */
+  --pos: #2a78d6;           /* 權重正值（diverging 藍極） */
+  --neg: #e34948;           /* 權重負值（diverging 紅極） */
+  --neutral-mid: #f0efec;   /* diverging 中點 */
+  --good: #0ca30c;          /* 誤差下降 */
+  --good-text: #006300;
+  --critical: #d03b3b;      /* 誤差上升 */
+  --track: #e1e0d9;
+  --code-bg: #f3f2ee;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-1: #1a1a19;
+    --page: #0d0d0d;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid-line: #2c2c2a;
+    --baseline: #383835;
+    --border: rgba(255,255,255,0.10);
+    --series-1: #3987e5;
+    --pos: #3987e5;
+    --neg: #e66767;
+    --neutral-mid: #383835;
+    --good: #0ca30c;
+    --good-text: #0ca30c;
+    --critical: #e66767;
+    --track: #2c2c2a;
+    --code-bg: #141413;
+  }
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--page);
+  color: var(--text-primary);
+  padding: 20px;
+}
+.page { max-width: 1180px; margin: 0 auto; }
+header { margin: 0 auto 16px; }
+header h1 { font-size: 1.5rem; margin-bottom: 6px; }
+header p { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; max-width: 72ch; }
+.net-diagram { margin: 12px 0 0; max-width: 100%; }
+.layout {
+  display: grid; grid-template-columns: minmax(340px, 420px) 1fr; gap: 16px;
+  align-items: start;
+}
+@media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+.panel {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+.panel h2 { font-size: 1.0rem; margin-bottom: 10px; }
+.panel h2 small { color: var(--text-muted); font-weight: normal; font-size: 0.8rem; }
+
+/* ---- Tab 導覽 ---- */
+.tabbar {
+  max-width: 1180px; margin: 0 auto 16px;
+  display: flex; gap: 8px; border-bottom: 1px solid var(--border); padding-bottom: 0;
+}
+.tab-btn {
+  font: inherit; font-size: 0.95rem; font-weight: 600;
+  padding: 10px 18px; border: none; background: none; color: var(--text-muted);
+  cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px;
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active { color: var(--series-1); border-bottom-color: var(--series-1); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---- 旋鈕板 ---- */
+.knob-grid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 2px 10px;
+  align-items: center;
+  justify-items: center;
+}
+.knob-grid .col-head {
+  font-size: 0.82rem; font-weight: 600; color: var(--text-secondary);
+  padding-bottom: 4px;
+}
+.knob-grid .row-head {
+  font-size: 0.78rem; color: var(--text-muted); justify-self: end;
+  font-variant-numeric: tabular-nums;
+}
+.knob { display: flex; flex-direction: column; align-items: center; cursor: ns-resize;
+  touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 8px; padding: 2px 6px; }
+.knob:hover, .knob.dragging { background: var(--neutral-mid); }
+.knob svg { display: block; }
+.knob .val {
+  font-size: 0.72rem; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; margin-top: -2px;
+}
+.hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 10px; line-height: 1.5; }
+
+/* ---- 儀表板 ---- */
+.dash { display: flex; flex-direction: column; gap: 16px; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.stat-tile { padding: 4px 8px; }
+.stat-tile .label { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 2px; }
+.stat-tile .value { font-size: 2.1rem; font-weight: 700; line-height: 1.15; }
+.stat-tile .sub { font-size: 0.85rem; margin-top: 2px; min-height: 1.2em; }
+.delta-down { color: var(--good-text); }
+.delta-up { color: var(--critical); }
+.delta-flat { color: var(--text-muted); }
+.chart-wrap svg { display: block; width: 100%; height: auto; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: inherit; font-size: 0.88rem;
+  padding: 8px 14px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary);
+  cursor: pointer;
+}
+button:hover { background: var(--neutral-mid); }
+button.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+button.primary:hover { filter: brightness(1.08); }
+button.selected { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+
+/* ---- 樣本區 ---- */
+.samples { display: flex; flex-wrap: wrap; gap: 6px; }
+.sample { position: relative; border: 2px solid var(--critical); border-radius: 5px; line-height: 0; }
+.sample.correct { border-color: var(--good); }
+.sample canvas { width: 34px; height: 34px; image-rendering: pixelated; border-radius: 3px; }
+.sample .pred {
+  position: absolute; right: 1px; bottom: 1px;
+  font-size: 0.62rem; line-height: 1; padding: 1px 3px;
+  background: rgba(0,0,0,0.65); color: #fff; border-radius: 3px;
+}
+.legend-line { font-size: 0.78rem; color: var(--text-muted); margin-top: 8px; }
+.legend-line .box { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: -1px; }
+
+/* ---- Tab1：前向傳播動畫 ---- */
+.demo-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; align-items: center; }
+.demo-col-label { font-size: 0.72rem; color: var(--text-muted); text-align: center; line-height: 1.3; }
+.demo-input-canvas {
+  width: 84px; height: 84px; image-rendering: pixelated;
+  border-radius: 6px; border: 1px solid var(--border); background: #fff;
+}
+.demo-net-wrap { display: flex; gap: 18px; align-items: center; }
+.demo-input-side { display: flex; flex-direction: column; gap: 8px; align-items: center; flex: 0 0 auto; }
+#netSvg { flex: 1; min-width: 0; height: auto; }
+#netSvg .edge {
+  stroke: var(--baseline); stroke-width: 0.8; opacity: 0.5;
+  transition: stroke 0.3s ease, opacity 0.3s ease, stroke-width 0.3s ease;
+}
+#netSvg .edge.flow { stroke: var(--series-1); stroke-width: 1.8; opacity: 1; }
+#netSvg .node-fill { transition: fill-opacity 0.45s ease; }
+#netSvg .layer-label { fill: var(--text-secondary); font-size: 14px; }
+#netSvg .pct-label { fill: var(--text-primary); font-size: 15px; font-weight: 700; }
+
+.demo-verdict {
+  margin-top: 14px; font-size: 1.05rem; font-weight: 600; min-height: 1.6em;
+  opacity: 0; transition: opacity 0.4s ease;
+}
+.demo-verdict.show { opacity: 1; }
+.demo-verdict.correct { color: var(--good-text); }
+
+.code-panel { margin-top: 16px; }
+.code-panel pre {
+  background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; overflow-x: auto; max-height: 520px; overflow-y: auto;
+}
+.code-panel code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem; line-height: 1.6; color: var(--text-primary); white-space: pre;
+}
+
+/* ---- Tab3：vibe coding 實錄 ---- */
+.vibe-round { border-left: 3px solid var(--series-1); padding: 2px 0 2px 16px; margin-bottom: 24px; }
+.vibe-round:last-child { margin-bottom: 0; }
+.vibe-round h3 { font-size: 0.98rem; margin-bottom: 10px; }
+.vibe-round h3 .round-tag {
+  display: inline-block; background: var(--series-1); color: #fff;
+  font-size: 0.72rem; border-radius: 99px; padding: 2px 10px; margin-right: 8px; vertical-align: 1px;
+}
+.prompt-bubble {
+  background: var(--neutral-mid); border-radius: 10px; padding: 12px 14px;
+  font-size: 0.88rem; line-height: 1.7; color: var(--text-primary);
+  border: 1px solid var(--border); margin-bottom: 12px; max-width: 80ch;
+}
+.prompt-bubble .who { font-size: 0.74rem; color: var(--text-muted); display: block; margin-bottom: 4px; }
+.did-title { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.did-list { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; }
+.did-list li { padding-left: 1.7em; position: relative; }
+.did-list li::before { content: '🤖'; position: absolute; left: 0; }
+.did-list li.ask::before { content: '❓'; }
+.did-list li.test::before { content: '🧪'; }
+.did-list li.fix::before { content: '🔧'; }
+.tip-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.tip-card { background: var(--neutral-mid); border-radius: 8px; padding: 12px 14px; font-size: 0.85rem; line-height: 1.65; color: var(--text-secondary); }
+.tip-card b { display: block; margin-bottom: 4px; color: var(--text-primary); }
+
+/* ---- 手寫畫板 ---- */
+.draw-wrap { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+.draw-left { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+#drawCanvas {
+  width: 240px; height: 240px; border: 1px solid var(--border); border-radius: 8px;
+  background: #fff; cursor: crosshair; touch-action: none;
+}
+.draw-result { display: flex; flex-direction: column; gap: 10px; min-width: 260px; flex: 1; }
+.draw-bar-row { display: flex; align-items: center; gap: 10px; }
+.draw-lbl { font-weight: 700; width: 36px; }
+.draw-track { flex: 1; height: 22px; background: var(--track); border-radius: 6px; overflow: hidden; }
+.draw-fill { height: 100%; width: 0%; background: var(--series-1); transition: width 0.15s ease; }
+.draw-pct { width: 60px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.9rem; color: var(--text-secondary); }
+.draw-verdict { font-size: 1rem; font-weight: 600; min-height: 1.5em; margin-top: 4px; }
+.draw-verdict.decided { color: var(--good-text); }
+/* ---- 第一層權重熱圖 ---- */
+.heatmap-row { display: flex; flex-wrap: wrap; gap: 12px; }
+.heatmap-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.heatmap-cell canvas { width: 64px; height: 64px; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--border); }
+.heatmap-cell .lbl { font-size: 0.72rem; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<div class="tabbar">
+  <button class="tab-btn active" id="tabBtn1" data-tab="tab1">① 網路如何判斷</button>
+  <button class="tab-btn" id="tabBtn2" data-tab="tab2">② 旋鈕挑戰</button>
+  <button class="tab-btn" id="tabBtn3" data-tab="tab3">③ 這頁怎麼做的</button>
+</div>
+
+<div class="page">
+
+<!-- ========== TAB 1：前向傳播介紹 ========== -->
+<section id="tab1" class="tab-panel active">
+  <header>
+    <h1>神經網路怎麼看懂一張手寫數字？</h1>
+    <p>這是一個 <strong>64 → 10 → 10 → 2</strong> 的神經網路：輸入一張 8×8 的手寫數字圖片，
+       資料會依序流過兩層各 10 個神經元的隱藏層，最後在輸出層的「0」和「1」兩個節點上
+       各給出一個機率——機率較大的那一個，就是網路的判定結果。點選下方範例，看看資料實際怎麼流動。</p>
+    <svg class="net-diagram" width="620" height="66" viewBox="0 0 620 66" role="img" aria-label="網路結構：輸入64、隱藏10、隱藏10、輸出2">
+      <g font-size="12" fill="var(--text-secondary)" text-anchor="middle">
+        <rect x="10"  y="8" width="110" height="40" rx="8" fill="none" stroke="var(--baseline)"/>
+        <text x="65" y="26">輸入層</text><text x="65" y="42">8×8 = 64 像素</text>
+        <rect x="160" y="8" width="100" height="40" rx="8" fill="none" stroke="var(--baseline)"/>
+        <text x="210" y="26">隱藏層</text><text x="210" y="42">10 神經元</text>
+        <rect x="300" y="8" width="100" height="40" rx="8" fill="none" stroke="var(--baseline)"/>
+        <text x="350" y="26">隱藏層</text><text x="350" y="42">10 神經元</text>
+        <rect x="440" y="8" width="120" height="40" rx="8" fill="none" stroke="var(--series-1)" stroke-width="2"/>
+        <text x="500" y="26" fill="var(--series-1)" font-weight="bold">輸出層</text>
+        <text x="500" y="42">2 類（0 或 1）</text>
+        <line x1="120" y1="28" x2="160" y2="28" stroke="var(--baseline)"/>
+        <line x1="260" y1="28" x2="300" y2="28" stroke="var(--baseline)"/>
+        <line x1="400" y1="28" x2="440" y2="28" stroke="var(--series-1)" stroke-width="2"/>
+      </g>
+    </svg>
+  </header>
+
+  <section class="panel">
+    <h2>前向傳播動畫 <small>（用真實測試圖片示範）</small></h2>
+    <div class="demo-controls">
+      <button class="selected" id="demoBtnZero">範例：手寫「0」</button>
+      <button id="demoBtnOne">範例：手寫「1」</button>
+      <button class="primary" id="demoBtnPlay">▶️ 重新播放動畫</button>
+    </div>
+
+    <div class="demo-net-wrap">
+      <div class="demo-input-side">
+        <div class="demo-col-label">輸入圖片<br>8×8 = 64 像素</div>
+        <canvas class="demo-input-canvas" id="demoCanvas" width="8" height="8"></canvas>
+      </div>
+      <svg id="netSvg" viewBox="0 0 880 560" role="img" aria-label="經典神經網路節點連線圖：輸入層、兩層隱藏層各 10 個神經元、輸出層 2 個節點"></svg>
+    </div>
+    <div class="demo-verdict" id="demoVerdict"></div>
+    <p class="hint">圓圈顏色深淺 = 神經元的啟動值（藍 = 正、紅 = 負，tanh 範圍 −1～1）．輸出節點旁的數字 = softmax 機率．輸入層 64 顆神經元僅示意畫出 10 顆．滑鼠停留在神經元上可看實際數值。</p>
+
+  </section>
+
+  <section class="panel" style="margin-top:16px;">
+    <h2>自己畫畫看 <small>（畫一個 0 或 1，網路即時判定）</small></h2>
+    <div class="draw-wrap">
+      <div class="draw-left">
+        <canvas id="drawCanvas" width="240" height="240"></canvas>
+        <button id="drawClear">🧽 清除重畫</button>
+      </div>
+      <div class="draw-result">
+        <div class="draw-bar-row"><span class="draw-lbl">「0」</span><div class="draw-track"><div class="draw-fill" id="drawFill0"></div></div><span class="draw-pct" id="drawPct0">–</span></div>
+        <div class="draw-bar-row"><span class="draw-lbl">「1」</span><div class="draw-track"><div class="draw-fill" id="drawFill1"></div></div><span class="draw-pct" id="drawPct1">–</span></div>
+        <div class="draw-verdict" id="drawVerdict">在左邊畫點什麼吧！</div>
+      </div>
+    </div>
+    <p class="hint">滑鼠／手指按住拖曳作畫．小提醒：這個網路只學過「置中的 0 和 1」——畫得太偏、太小，或故意畫別的數字，它也只會在 0 和 1 之間硬選一個。這就是「訓練資料分佈」的限制：網路只會它看過的世界。</p>
+  </section>
+
+  <section class="panel" style="margin-top:16px;">
+    <h2>隱藏層 1 的 10 顆神經元在「看」什麼？ <small>（第一層 64→10 權重的視覺化）</small></h2>
+    <div class="heatmap-row" id="heatmapRow"></div>
+    <p class="hint">每張 8×8 小圖 = 一顆隱藏層 1 神經元對 64 個輸入像素的權重．藍 = 這個位置有筆畫會讓它「興奮」（正權重）、紅 = 會「抑制」它（負權重）、白 ≈ 不在乎．這些特徵偵測器不是人設計的，是梯度下降訓練時自動長出來的。</p>
+  </section>
+
+  <section class="panel code-panel">
+    <h2>訓練這個網路的 Python 程式碼</h2>
+    <pre><code id="trainCode"></code></pre>
+  </section>
+</section>
+
+<!-- ========== TAB 2：旋鈕挑戰 ========== -->
+<section id="tab2" class="tab-panel">
+  <header>
+    <h1>神經網路旋鈕實驗室</h1>
+    <p>這個網路已經學會分辨手寫的「0」和「1」——但我們把<strong>最後一層的 20 個權重打亂成隨機值</strong>。
+       你的任務：轉動下面的 20 個旋鈕，讓「誤差」愈小愈好。
+       訣竅：轉一下，看誤差變大還是變小；<strong>變大就往反方向轉</strong>。這正是電腦訓練神經網路時做的事（梯度下降）。</p>
+    <svg class="net-diagram" width="620" height="86" viewBox="0 0 620 86" role="img" aria-label="網路結構：輸入64、隱藏10、隱藏10、輸出2，前三層凍結，最後一層可調">
+      <g font-size="12" fill="var(--text-secondary)" text-anchor="middle">
+        <rect x="10"  y="18" width="110" height="40" rx="8" fill="none" stroke="var(--baseline)"/>
+        <text x="65" y="36">輸入層</text><text x="65" y="52">8×8 = 64 像素</text>
+        <rect x="160" y="18" width="100" height="40" rx="8" fill="none" stroke="var(--baseline)"/>
+        <text x="210" y="36">隱藏層 🔒</text><text x="210" y="52">10 神經元</text>
+        <rect x="300" y="18" width="100" height="40" rx="8" fill="none" stroke="var(--baseline)"/>
+        <text x="350" y="36">隱藏層 🔒</text><text x="350" y="52">10 神經元</text>
+        <rect x="440" y="18" width="120" height="40" rx="8" fill="none" stroke="var(--series-1)" stroke-width="2"/>
+        <text x="500" y="36" fill="var(--series-1)" font-weight="bold">輸出層 🎛️</text>
+        <text x="500" y="52">2 類（0 或 1）</text>
+        <line x1="120" y1="38" x2="160" y2="38" stroke="var(--baseline)"/>
+        <line x1="260" y1="38" x2="300" y2="38" stroke="var(--baseline)"/>
+        <line x1="400" y1="38" x2="440" y2="38" stroke="var(--series-1)" stroke-width="2"/>
+        <text x="425" y="78" fill="var(--series-1)" font-size="11">↑ 這 10×2 = 20 條連線就是你的旋鈕</text>
+        <text x="210" y="78" font-size="11">🔒 = 已訓練好、固定不動</text>
+      </g>
+    </svg>
+  </header>
+
+  <div class="layout">
+    <section class="panel">
+      <h2>權重旋鈕 <small>（每列 = 一個隱藏神經元 n₁…n₁₀）</small></h2>
+      <div class="knob-grid" id="knobGrid"></div>
+      <p class="hint">🖱️ 上下拖曳旋轉．滾輪微調．雙擊歸零．按住 Shift 拖曳 = 精細調整．範圍 −2 ～ +2（藍 = 正、紅 = 負）</p>
+    </section>
+
+    <div class="dash">
+      <section class="panel">
+        <div class="stats">
+          <div class="stat-tile">
+            <div class="label">誤差（平均交叉熵，愈小愈好）</div>
+            <div class="value" id="lossValue">–</div>
+            <div class="sub delta-flat" id="lossDelta">開始轉旋鈕吧！</div>
+          </div>
+          <div class="stat-tile">
+            <div class="label">分類正確率（共 <span id="nTotal">–</span> 張測試圖）</div>
+            <div class="value" id="accValue">–</div>
+            <div class="sub" id="accSub"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel chart-wrap">
+        <h2>誤差歷史 <small>（你每一步調整留下的軌跡）</small></h2>
+        <svg id="lossChart" viewBox="0 0 640 180" aria-label="誤差歷史折線圖"></svg>
+      </section>
+
+      <section class="panel">
+        <div class="controls">
+          <button class="primary" id="btnRandom">🎲 隨機重置（重新挑戰）</button>
+          <button id="btnStep" title="用真實梯度公式一次更新全部 20 個權重 — 這就是梯度下降的一步">🤖 讓電腦調一步</button>
+          <button id="btnZero">歸零全部旋鈕</button>
+          <button id="btnAnswer">👀 顯示標準答案</button>
+          <span style="align-self:center; font-size:0.85rem; color:var(--text-muted);">已調整 <span id="stepCount">0</span> 步</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>測試圖片即時判定</h2>
+        <div class="samples" id="samples"></div>
+        <div class="legend-line">框線顏色：<span class="box" style="background:var(--good)"></span>判對　<span class="box" style="background:var(--critical)"></span>判錯．圖上小字 = 目前網路的猜測（滑鼠停留看詳情）</div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ========== TAB 3：這頁怎麼做的 ========== -->
+<section id="tab3" class="tab-panel">
+  <header>
+    <h1>這個網頁是怎麼做出來的？— Claude Code vibe coding 實錄</h1>
+    <p>整個教具<strong>沒有手寫任何一行程式碼</strong>，全部用自然語言對話產生。
+       過程只有三輪 prompt：說目的 → 加 tab → 加這一頁。
+       下面是每一輪我們說了什麼、Claude Code 實際做了哪些事。</p>
+  </header>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>對話時間軸</h2>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 1 輪</span>說清楚「教學目的」，其他交給 AI</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「我要做一個 64×10×10×2 的 DNN，輸入 8×8 的 MNIST 0 與 1 圖片，輸出 0 與 1 的分類。
+        目的是讓學生調整最後一層 10×2 的 20 個神經元權重，觀察誤差變化——
+        訓練好之後故意把這 20 個權重 reset 成隨機值，設計成類似旋鈕讓學生轉，
+        誤差變大就知道要往反方向調。用 HTML 呈現。你能理解我的目的嗎？」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li class="ask">先確認理解了教學目的（這就是手動版的梯度下降），然後<strong>反問三個關鍵設計決策</strong>：
+            權重從哪來（Python 預訓練 vs 瀏覽器即時訓練）？旋鈕要長怎樣（旋轉旋鈕 vs 滑桿）？bias 要不要也開放調整？——由人拍板，AI 不亂猜</li>
+        <li>擬出完整實作計畫（plan mode）等使用者核准後才動工</li>
+        <li>寫 <code>train.py</code>：用 numpy 手刻 backprop 訓練 64→10→10→2 網路（sklearn digits 資料集本身就是 8×8），test accuracy 100%</li>
+        <li>產出單一自包含 HTML：20 個旋鈕、誤差儀表板、誤差歷史曲線、72 張測試圖即時判定，訓練好的權重直接嵌進檔案</li>
+        <li class="test">自己開瀏覽器逐項測試：拖曳旋轉、滾輪微調、雙擊歸零、三個按鈕、「顯示標準答案」的誤差要跟 Python 訓練結果一模一樣（0.0003 ✓）</li>
+        <li class="fix">測試時發現問題、自己修掉：0 和 1 太好分，隨機權重常常碰巧全對（沒挑戰性）→ 改成重抽到「正確率 ≤ 85%」才開局；誤差很小時 y 軸標籤全變成一樣的數字 → 修顯示格式</li>
+      </ul>
+    </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 2 輪</span>功能能動了，再要求重新編排</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「目前 OK，但是可以設計成有兩個 tab 嗎？tab 1 介紹整個網路是 64×10×10×2，
+        輸入端出現一張 MNIST 0，跑過一層一層網路，最後在 0 的那個分類 pin 上出現較大的機率值、判別為 0，
+        再做一張 MNIST 1 的同樣展示，下方列出 Python 程式碼。tab 2 就是剛剛的轉轉轉。」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li>把整頁重構成 tab 架構，原本的旋鈕挑戰完整搬進 tab 2，功能一項不少</li>
+        <li>做出前向傳播動畫：用<strong>真實的測試圖片</strong>跑真實的網路運算，逐層點亮（輸入 → 隱藏層 1 → 隱藏層 2 → 輸出機率柱），正確分類的 pin 亮綠框打勾</li>
+        <li>把 <code>train.py</code> 原始碼也嵌進頁面，tab 1 下方直接看得到</li>
+        <li class="test">重新在瀏覽器驗證：0 和 1 兩個範例動畫、tab 來回切換、tab 2 旋鈕照常運作、console 零錯誤</li>
+      </ul>
+    </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 3 輪</span>最後的自我引用</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「再加入 tab 3，介紹我們剛剛如何做出這兩個 tab——下了什麼 prompt、
+        Claude Code 就開始做了哪些事……作為 Claude Code vibe coding 教學。」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li>就是你現在正在看的這一頁 😄</li>
+      </ul>
+    </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 4 輪</span>小修改也是 prompt——附一張圖、改一個名字</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        先貼了一張經典的神經網路節點連線圖（黃色輸入圓圈、藍色隱藏層圓圈、紅色輸出圓圈、
+        全連接細線），說「tab 1 網路的畫法我要的是如附圖所示，這是常見的」；
+        接著又提了一個小地方：「tab 2 的神經元編號 h1～h10 感覺容易以為是 hidden layers，
+        改成 n1～n10 如何？」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li>把 tab 1 原本的「長條溫度計」視覺整個換掉，改畫成附圖那種<strong>圓圈節點＋全連接線</strong>的 SVG——
+            220 條邊、22 顆可染色節點，資料流過時邊線會整批閃爍，神經元依啟動值染色，
+            輸出節點套綠色圓環標示勝出者</li>
+        <li>命名這種小事也認真核對：把 20 個旋鈕的列標籤從 <code>h1…h10</code> 全部改成 <code>n1…n10</code>，
+            連旁邊的說明文字一起改，確認不會跟「hidden layer」的 h 搞混</li>
+        <li class="test">兩處都重新開瀏覽器截圖比對，確認畫面跟附圖的視覺邏輯一致、旋鈕功能沒被改壞</li>
+      </ul>
+    </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 5 輪</span>換個角色：這次是 AI 主動出主意</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「你覺得如果要更完整做這樣的 DNN 介紹，有沒有什麼建議？」——這次沒有明確指令，
+        單純問意見。
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li class="ask">先不動手，列出六個可能的補強方向並分級推薦（手寫畫板、電腦自動調一步、
+            第一層權重熱圖、像素數值檢視、進階分類任務、訓練曲線對照），再用選擇題讓使用者勾選要做哪些——
+            這次換成 <strong>AI 主動提案、人挑選範圍</strong>，跟前面「AI 反問、人拍板」是同一個精神的另一種用法</li>
+        <li>選定手寫畫板、電腦調一步、第一層權重熱圖三項後，先寫 plan 說明每個功能的實作方式才動工</li>
+        <li>畫板：8×8 網格配軟筆刷，畫的當下即時跑前向傳播顯示機率；熱圖：把第一層 64→10
+            的權重畫成 10 張 8×8 小圖，具象化「神經元在看什麼」；電腦調一步：用真實的
+            softmax 梯度公式一次更新全部 20 個旋鈕</li>
+        <li class="test">瀏覽器實測時抓到兩個問題：「電腦調一步」原本學習率設太大，一按就幾乎收斂到 0，
+            完全看不出「漸進下降」的教學效果</li>
+        <li class="fix">把學習率從 2.0 調到 0.1，重測後變成平滑的 12 步下降曲線；另外還踩到瀏覽器
+            快取舊版 JS 的雷（改完檔案內容對了，但頁面讀到的還是舊值），用帶版本參數的網址
+            強制重新載入才確認新版本真的生效</li>
+      </ul>
+    </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 6 輪</span>交付前的確認</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「所以如果給同學，只要提供 index.html 檔，不用給 .json 檔？」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li class="test">沒有直接回答「對」，而是先搜尋整份 index.html，確認裡面沒有任何
+            <code>fetch</code>／<code>XMLHttpRequest</code>／外部檔案引用，
+            才確認 weights.json 真的只是建置期間的中繼檔案——這一步驗證比直覺判斷更可靠</li>
+        <li>回答：只要 index.html 一個檔案，離線雙擊就能用</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>從這次經驗學到的 vibe coding 心法</h2>
+    <div class="tip-grid">
+      <div class="tip-card"><b>💡 說「目的」，不是「規格」</b>
+        第一輪 prompt 講的是教學目標（讓學生體會梯度下降），而不是「幫我畫 20 個 canvas 圓圈」。
+        AI 理解目的後，很多細節它會自己補齊、甚至想得比你周到。</div>
+      <div class="tip-card"><b>❓ 讓 AI 發問，關鍵決策自己拍板</b>
+        好的 AI 協作不是一次把需求寫完美，而是允許它反問。
+        預訓練方式、旋鈕形式、bias 處理——三個問題三個選擇，就避開了三次重工。</div>
+      <div class="tip-card"><b>🧪 要求「驗證過」而不是「寫完了」</b>
+        Claude Code 會自己開瀏覽器操作頁面：拖旋鈕、按按鈕、對照理論值（歸零時誤差 = ln 2 ≈ 0.693）。
+        寫完 ≠ 能用，驗證過才算數。</div>
+      <div class="tip-card"><b>🔁 小步迭代，一次只加一件事</b>
+        先讓核心功能能動（旋鈕挑戰）→ 再重排版面（加 tab）→ 再加說明頁（這一頁）。
+        每一步都建立在「上一步已驗證 OK」的基礎上。</div>
+    </div>
+    <p class="hint" style="margin-top:12px;">工具鏈：Claude Code ＋ Python（numpy／scikit-learn，訓練用）＋ 純 vanilla HTML/CSS/JS（零外部相依，單一檔案）。</p>
+  </section>
+</section>
+
+</div>
+
+<script>
+const DATA = {"W1":[[0.03809,-0.13,0.09381,0.11757,-0.24388,-0.16277,0.01598,-0.03953,-0.0021,-0.10663],[0.1101,0.09784,0.00773,0.1417,0.05869,-0.10748,0.04577,-0.12052,0.10963,-0.00628],[-0.02043,-0.07674,0.14009,0.00508,-0.04216,-0.04817,0.05295,0.0374,0.0536,0.0505],[0.23031,-0.15891,0.01892,-0.1928,0.04452,0.15527,0.00484,0.02455,-0.043,0.0581],[0.08793,0.04779,-0.06942,0.00303,0.01086,0.02948,0.08743,0.06355,0.10556,-0.01458],[0.09217,0.23772,-0.32147,0.12176,0.00584,-0.10775,-0.12695,0.00768,-0.16097,0.12121],[-0.19153,0.0116,-0.02692,0.13116,0.10961,0.08872,-0.07254,-0.12034,0.08854,-0.021],[-0.15946,-0.14166,-0.11493,0.06215,0.0178,0.08631,-0.05341,0.01982,0.0782,-0.03867],[0.0571,-0.08274,-0.04538,-0.04772,-0.14948,0.06087,-0.05868,0.00156,0.06009,0.05582],[0.08045,-0.01903,-0.04717,-0.01522,-0.21219,-0.18104,-0.16317,-0.11889,0.05408,-0.1127],[-0.08749,0.05684,0.04064,0.00322,-0.14418,-0.0242,-0.09201,0.06092,0.16482,-0.22428],[0.04728,-0.0064,-0.0626,-0.19361,0.00337,-0.06589,0.00027,0.05378,0.23182,-0.05396],[-0.10438,0.07277,-0.03257,0.22417,0.12855,0.03391,0.11421,-0.18814,-0.08109,-0.13704],[-0.03575,-0.12861,0.04174,0.00074,-0.16221,-0.14145,-0.01009,0.05901,0.25025,0.35174],[0.0673,-0.07858,-0.30408,0.0793,-0.08348,-0.06111,-0.10252,-0.0713,0.11835,0.02132],[-0.01983,-0.12946,-0.20934,-0.06079,-0.00672,0.22099,0.01628,0.12284,-0.06241,-0.14812],[-0.12064,-0.09065,0.26606,-0.10267,0.10481,-0.11287,0.11645,0.04812,-0.01958,-0.0051],[-0.08057,0.06293,-0.0665,-0.1327,-0.15239,0.00936,0.18422,-0.00038,-0.00904,0.04073],[0.12408,-0.08234,0.02987,0.03506,0.01647,0.18797,0.03744,-0.04494,-0.10642,0.19195],[0.28087,0.13161,-0.21005,0.35904,-0.07463,-0.13158,-0.03713,-0.19855,-0.05224,-0.03926],[0.1491,0.45957,-0.25472,0.39962,-0.13437,-0.04177,-0.27254,-0.44386,-0.20948,-0.04946],[0.09916,-0.21076,0.0311,-0.12376,-0.0556,0.11803,0.05565,0.21673,0.01642,-0.09999],[-0.0315,0.02674,0.02803,-0.14335,0.0114,0.02313,0.3104,0.23179,-0.10017,-0.03535],[-0.18293,-0.07384,0.03945,0.15073,-0.09114,-0.08177,-0.26841,-0.02033,-0.1328,-0.06618],[-0.10961,-0.01178,-0.21972,-0.18338,0.26616,-0.16093,-0.1371,0.22961,0.36313,-0.14645],[-0.05897,0.00978,0.24219,-0.15659,-0.03727,0.09355,0.05974,-0.01611,0.00386,-0.17384],[-0.05788,-0.12103,0.09107,-0.16983,0.02841,0.13198,0.02385,0.14231,0.0577,-0.02345],[-0.01455,0.21998,-0.1876,0.46096,0.27155,0.03943,-0.21319,-0.3061,0.0808,0.00994],[0.17062,0.07506,-0.1537,0.38055,-0.01437,-0.08747,-0.13115,-0.28406,-0.1457,-0.02369],[-0.04247,-0.0245,0.19894,-0.37919,-0.04537,0.01064,0.02503,-0.00029,-0.1912,0.0306],[0.18762,-0.25905,0.17492,-0.1187,-0.03188,-0.12796,-0.01616,0.22856,0.10899,0.21544],[0.14718,0.05489,0.21799,0.05487,0.1035,-0.03707,0.00832,-0.08718,0.1237,-0.14729],[0.09779,-0.02383,0.14641,0.09386,0.22758,0.09135,-0.19651,-0.00837,-0.1465,-0.06478],[0.16192,0.0126,-0.02227,-0.20409,-0.01876,-0.14364,-0.05796,0.10979,0.17867,0.07037],[-0.33279,-0.09788,0.12464,-0.1026,0.14788,-0.23177,-0.03706,0.22936,-0.12753,0.15726],[0.10921,0.25346,-0.21617,0.27987,0.19237,0.02611,-0.0679,-0.10055,-0.16388,-0.04038],[0.08869,0.32733,-0.13713,0.17706,0.10302,0.15727,-0.25234,-0.37782,-0.08023,0.09476],[-0.01532,0.10237,0.13677,0.01919,0.04439,0.27826,-0.02769,-0.18394,0.23171,-0.06737],[-0.02036,0.08117,-0.11933,-0.24534,-0.22898,-0.09378,0.08648,0.14496,0.08045,-0.17669],[-0.28876,0.00679,-0.05897,0.05742,0.08774,0.01728,0.09502,0.02865,0.06626,-0.08808],[-0.02245,0.0246,0.10257,-0.04922,0.06515,-0.03323,-0.01469,0.10369,-0.24913,-0.16206],[-0.19959,-0.32476,-0.05112,0.05762,-0.04592,0.02787,0.14894,0.20067,0.00985,0.1665],[-0.05232,-0.28118,0.07899,-0.36551,-0.17746,-0.01949,0.15838,0.4091,-0.08282,0.02487],[-0.08456,0.16039,-0.11389,-0.10369,0.15232,-0.07239,-0.13786,-0.21468,-0.12263,0.03003],[0.05359,0.21923,-0.13601,0.34787,0.02769,-0.19634,0.0162,-0.19849,0.06481,0.02659],[-0.04737,-0.05369,0.30748,0.13294,-0.02762,0.01155,0.14685,-0.00492,0.09126,-0.01378],[0.01183,-0.1704,-0.13185,-0.32607,-0.16192,-0.05236,-0.0113,0.30495,0.17776,-0.1192],[0.04346,-0.05088,-0.03555,0.02317,0.0774,-0.04241,0.13298,-0.14274,0.00079,0.32471],[0.02788,0.17915,0.01144,0.0726,-0.0071,-0.0213,-0.09744,0.05379,-0.10644,0.0832],[0.13312,0.03989,-0.03013,0.05016,-0.04033,0.11696,-0.22673,-0.03545,-0.24569,-0.18753],[0.12058,-0.02001,0.02243,-0.3092,-0.41136,-0.05432,0.3417,0.19602,0.0021,0.04156],[-0.20613,-0.09076,0.04813,-0.05071,0.07973,0.0593,0.0737,-0.00329,0.14126,0.17381],[-0.1044,-0.09454,0.12759,-0.00935,0.18566,-0.05871,0.12933,0.02342,0.03324,0.16804],[-0.06628,-0.17559,-0.01462,-0.01619,-0.20783,0.07405,-0.07465,0.1979,-0.24869,-0.10459],[-0.19811,-0.0661,-0.00062,0.02793,-0.01232,-0.02665,-0.0004,-0.17259,0.08411,0.088],[0.05217,0.07982,0.02708,0.2661,-0.00582,-0.03822,-0.10037,-0.13887,-0.15858,-0.11086],[-0.00884,0.04179,0.00639,-0.09569,0.11252,0.09243,-0.01996,-0.08161,0.06855,0.0235],[-0.18097,-0.00848,0.03266,-0.11239,0.02373,-0.18195,0.16696,0.15598,-0.03163,0.04539],[-0.2999,-0.13844,-0.04649,-0.11151,0.09899,0.24505,-0.15939,-0.11087,0.03277,0.19764],[-0.19055,-0.08132,0.31073,-0.30174,-0.19178,-0.03886,-0.04549,0.23505,0.09005,-0.24503],[0.06313,-0.08624,0.15723,-0.08051,-0.07234,0.0688,0.06035,0.08383,-0.18269,0.0466],[-0.07865,0.16429,-0.30212,0.20509,-0.03718,-0.18108,-0.00156,-0.12194,-0.10845,0.18336],[-0.02102,0.09324,-0.0543,0.03378,0.09969,-0.08142,-0.10506,0.06781,-0.15955,-0.29595],[0.212,0.3443,-0.07918,-0.20606,-0.02481,-0.03872,-0.04054,-0.16678,0.06317,0.06663]],"b1":[0.01226,0.01996,-0.03778,0.02776,0.01998,-0.0081,-0.06302,-0.00956,0.01647,-0.02461],"W2":[[-0.42301,0.16955,0.68225,-0.01663,-0.09072,-0.00109,0.20296,-0.56938,0.10462,-0.11734],[0.72036,-0.23933,0.65066,-0.59259,0.21344,0.20224,-0.11857,-0.0356,0.60421,-0.0995],[-0.63409,0.10712,-0.36441,0.04619,-0.06287,-0.62844,-0.54821,0.20657,-0.27669,-0.82786],[0.43674,-0.17111,-0.03865,-0.77926,0.28499,0.23932,0.99968,0.0082,0.45498,-0.06074],[0.31509,0.08879,0.43723,-0.2772,-0.12836,-0.11291,0.28594,0.41928,-0.03785,-0.14176],[0.0647,-0.02869,0.26707,-0.62834,-0.26424,-0.27398,-0.74825,-0.28134,-0.3526,-0.06182],[0.25456,0.0524,-0.41313,0.14077,0.30929,-0.37478,-0.37842,0.23728,-0.21022,0.20502],[-0.17675,0.4656,-0.49782,0.33529,-0.08262,-0.49998,-0.74042,0.3379,-0.42525,-0.31506],[-0.0689,0.40415,-0.74695,-0.39433,-0.30376,0.42126,0.05815,0.26889,-0.41407,-0.36117],[0.15123,-0.00063,0.18734,-0.11159,0.08361,0.06372,0.27134,0.24075,-0.45396,-0.70968]],"b2":[-0.00163,0.00443,0.00119,-0.05509,-0.01087,0.01461,0.02888,-0.00663,0.0641,0.00426],"W3_trained":[[-0.23575,0.92812],[-0.06073,-0.85016],[-0.6071,0.93278],[1.13155,-0.39984],[-0.34077,-0.05921],[-0.54312,0.4521],[-1.11852,1.4454],[0.67803,0.24574],[-0.86829,0.84747],[0.03825,0.30396]],"b3":[-0.02997,0.02997],"X_test":[[0,0,4,13,14,8,0,0,0,3,14,3,1,16,3,0,0,7,9,0,0,14,6,0,0,8,4,0,0,16,4,0,0,8,6,0,0,16,0,0,0,3,11,0,1,14,0,0,0,0,12,4,6,11,0,0,0,0,5,16,14,1,0,0],[0,0,10,13,1,0,0,0,0,0,7,16,5,0,0,0,0,0,6,16,6,0,0,0,0,0,6,16,13,0,0,0,0,0,0,6,16,2,0,0,0,0,0,3,16,8,0,0,0,0,7,11,16,14,9,4,0,0,6,15,13,14,16,15],[0,0,0,16,11,0,0,0,0,0,2,16,16,2,0,0,0,0,3,16,16,6,0,0,0,0,3,16,15,2,0,0,0,0,2,16,16,2,0,0,0,0,4,16,15,0,0,0,0,0,1,16,15,1,0,0,0,0,0,12,16,2,0,0],[0,0,0,5,15,13,1,0,0,0,2,14,16,14,0,0,0,1,13,16,16,12,0,0,0,9,16,14,16,6,0,0,0,3,5,6,16,4,0,0,0,0,0,8,16,2,0,0,0,0,0,9,16,3,0,0,0,0,0,4,15,13,1,0],[0,0,3,11,6,0,0,0,0,0,10,14,16,2,0,0,0,3,15,1,11,11,0,0,0,4,12,0,2,16,2,0,0,7,12,0,0,12,8,0,0,4,14,0,1,15,8,0,0,2,15,14,15,15,1,0,0,0,5,13,14,5,0,0],[0,0,1,15,15,2,0,0,0,0,0,12,16,7,0,0,0,0,0,14,16,5,0,0,0,0,0,13,16,2,0,0,0,0,2,16,13,0,0,0,0,0,6,16,13,0,0,0,0,0,6,16,11,0,0,0,0,0,1,14,16,7,0,0],[0,0,7,16,13,4,0,0,0,0,7,16,16,9,0,0,0,0,1,16,16,9,0,0,0,0,3,16,16,9,0,0,0,0,8,16,16,8,0,0,0,0,10,16,16,4,0,0,0,0,9,16,14,1,0,0,0,0,4,12,14,8,0,0],[0,0,1,15,14,1,0,0,0,2,13,16,16,3,0,0,0,5,16,16,16,4,0,0,0,4,16,16,16,1,0,0,0,0,7,16,13,0,0,0,0,0,5,16,11,0,0,0,0,0,4,16,10,0,0,0,0,0,2,16,11,0,0,0],[0,0,3,15,5,0,0,0,0,0,5,16,10,0,0,0,0,0,6,16,7,0,0,0,0,2,12,16,9,0,0,0,0,8,16,15,14,0,0,0,0,0,6,3,16,6,0,0,0,0,6,8,12,15,12,10,0,0,2,13,16,16,15,11],[0,0,10,13,5,0,0,0,0,3,16,16,16,10,0,0,0,8,16,1,6,16,5,0,0,8,11,0,0,9,12,0,0,10,8,0,0,8,12,0,0,8,11,0,0,8,11,0,0,3,16,10,8,15,9,0,0,0,9,16,16,10,1,0],[0,0,0,11,9,0,0,0,0,0,0,11,14,0,0,0,0,0,0,11,13,0,0,0,0,0,0,15,13,0,0,0,0,0,0,13,13,0,0,0,0,0,0,13,9,0,0,0,0,0,0,10,10,0,0,0,0,0,0,9,11,0,0,0],[0,0,1,12,16,8,0,0,0,2,13,16,16,8,0,0,0,13,16,14,16,12,0,0,0,11,6,7,16,2,0,0,0,0,0,11,16,1,0,0,0,0,0,13,13,0,0,0,0,0,0,15,13,0,0,0,0,0,0,13,13,0,0,0],[0,0,12,9,12,1,0,0,0,0,14,16,16,8,0,0,0,3,16,9,3,15,2,0,0,4,16,1,0,16,5,0,0,5,12,0,0,16,5,0,0,3,14,1,4,16,4,0,0,0,15,12,14,14,0,0,0,0,7,12,12,2,0,0],[0,0,0,0,14,13,1,0,0,0,0,5,16,16,2,0,0,0,0,14,16,12,0,0,0,1,10,16,16,12,0,0,0,3,12,14,16,9,0,0,0,0,0,5,16,15,0,0,0,0,0,4,16,14,0,0,0,0,0,1,13,16,1,0],[0,0,6,13,0,0,0,0,0,0,8,16,2,0,0,0,0,0,6,16,3,0,0,0,0,0,3,15,6,0,0,0,0,0,0,10,10,0,0,0,0,0,0,3,15,0,0,0,0,0,7,10,14,12,5,1,0,0,6,16,16,16,16,12],[0,0,4,12,5,0,0,0,0,0,12,14,15,7,0,0,0,2,14,1,2,16,0,0,0,4,8,0,0,10,4,0,0,7,8,0,0,6,8,0,0,4,11,0,0,5,8,0,0,0,14,11,3,13,5,0,0,0,2,11,16,11,0,0],[0,0,0,7,16,12,0,0,0,0,7,16,16,12,0,0,0,3,16,16,16,8,0,0,0,7,16,16,16,8,0,0,0,0,0,11,16,12,0,0,0,0,0,7,16,15,0,0,0,0,0,6,16,16,5,0,0,0,0,6,15,15,2,0],[0,0,2,14,15,4,0,0,0,0,2,16,16,11,0,0,0,0,2,16,16,10,0,0,0,0,5,16,16,7,0,0,0,0,14,16,14,2,0,0,0,4,16,16,8,0,0,0,0,3,15,16,8,0,0,0,0,0,5,15,13,2,0,0],[0,0,6,16,13,11,1,0,0,0,16,15,12,16,1,0,0,3,16,7,0,13,6,0,0,4,16,0,0,10,8,0,0,8,16,0,0,14,6,0,0,5,16,7,9,16,5,0,0,1,15,16,16,16,1,0,0,0,6,16,14,6,0,0],[0,0,0,15,11,0,0,0,0,0,6,16,16,2,0,0,0,0,10,16,16,1,0,0,0,2,16,16,16,3,0,0,0,7,16,16,14,0,0,0,0,0,3,15,10,0,0,0,0,0,0,15,7,0,0,0,0,0,0,14,4,0,0,0],[0,0,9,16,11,0,0,0,0,1,16,13,15,7,0,0,0,7,16,6,4,16,3,0,0,9,14,0,0,11,10,0,0,8,13,0,0,7,13,0,0,7,13,0,0,7,16,0,0,3,16,7,7,15,6,0,0,0,9,16,16,10,0,0],[0,0,1,14,2,0,0,0,0,0,0,16,5,0,0,0,0,0,0,14,10,0,0,0,0,0,0,11,16,1,0,0,0,0,0,3,14,6,0,0,0,0,0,0,8,12,0,0,0,0,10,14,13,16,8,3,0,0,2,11,12,15,16,15],[0,0,0,2,16,16,2,0,0,0,0,4,16,16,2,0,0,1,4,12,16,12,0,0,0,7,16,16,16,12,0,0,0,0,3,10,16,14,0,0,0,0,0,8,16,12,0,0,0,0,0,6,16,16,2,0,0,0,0,2,12,15,4,0],[0,0,6,14,13,3,0,0,0,0,14,10,7,13,0,0,0,4,13,0,0,12,3,0,0,5,11,0,0,7,6,0,0,4,11,0,0,4,8,0,0,2,12,0,0,6,6,0,0,0,12,8,2,14,2,0,0,0,4,15,16,9,0,0],[0,0,0,0,7,16,6,0,0,0,0,4,16,16,4,0,0,2,11,15,16,16,7,0,0,10,16,13,10,16,4,0,0,1,3,0,4,16,5,0,0,0,0,0,7,16,7,0,0,0,0,0,9,16,8,0,0,0,0,0,9,16,6,0],[0,0,11,15,12,1,0,0,0,0,7,16,16,7,0,0,0,0,12,16,16,16,1,0,0,0,13,16,16,13,2,0,0,0,14,16,16,4,0,0,0,2,16,16,14,0,0,0,0,0,14,16,14,0,0,0,0,0,8,16,13,1,0,0],[0,0,0,3,12,12,2,0,0,0,7,15,16,16,0,0,0,4,15,9,14,16,3,0,0,2,0,0,14,16,0,0,0,0,0,0,14,16,0,0,0,0,0,0,15,13,0,0,0,0,0,0,16,14,1,0,0,0,0,3,16,13,2,0],[0,0,7,16,15,1,0,0,0,5,16,13,16,8,0,0,0,9,11,0,4,16,4,0,0,12,8,0,0,11,11,0,0,11,8,0,0,8,12,0,0,8,13,0,0,12,10,0,0,2,16,9,12,15,3,0,0,0,8,16,13,5,0,0],[0,0,6,16,12,1,0,0,0,3,16,5,9,13,0,0,0,5,12,0,0,12,6,0,0,8,14,2,0,7,8,0,0,7,12,2,0,4,8,0,0,4,12,0,0,9,7,0,0,3,16,5,7,14,2,0,0,0,7,16,13,3,0,0],[0,0,1,12,11,1,0,0,0,0,1,16,16,4,0,0,0,0,3,16,15,2,0,0,0,0,9,16,12,0,0,0,0,0,12,16,5,0,0,0,0,0,14,16,6,0,0,0,0,0,9,16,8,0,0,0,0,0,2,11,13,1,0,0],[0,0,5,15,12,4,0,0,0,2,15,8,11,16,4,0,0,8,9,0,6,16,4,0,0,8,8,0,2,10,8,0,0,8,7,0,0,13,5,0,0,2,14,0,0,16,2,0,0,0,14,8,11,10,0,0,0,0,4,13,14,0,0,0],[0,0,1,9,15,11,0,0,0,0,11,16,8,14,6,0,0,2,16,10,0,9,9,0,0,1,16,4,0,8,8,0,0,4,16,4,0,8,8,0,0,1,16,5,1,11,3,0,0,0,12,12,10,10,0,0,0,0,1,10,13,3,0,0],[0,0,7,12,13,2,0,0,0,0,14,13,8,13,0,0,0,3,16,1,0,11,2,0,0,4,14,0,0,5,8,0,0,5,8,0,0,5,8,0,0,4,16,0,2,14,7,0,0,2,16,10,14,15,1,0,0,0,6,14,14,4,0,0],[0,2,0,8,9,0,0,0,0,13,5,14,8,7,0,0,0,12,5,2,0,9,0,0,0,7,5,0,0,3,5,0,0,3,10,0,0,2,10,0,0,1,13,0,0,1,12,0,0,0,5,13,5,9,13,0,0,0,0,9,16,16,7,0],[0,0,10,9,0,0,0,0,0,0,8,16,2,0,0,0,0,0,8,16,6,0,0,0,0,0,5,16,13,1,0,0,0,0,1,5,14,6,0,0,0,0,0,0,8,11,0,0,0,0,8,12,9,16,6,4,0,0,7,16,16,16,16,14],[0,0,6,14,13,1,0,0,0,3,16,10,5,11,0,0,0,5,16,0,0,13,0,0,0,6,12,0,0,12,3,0,0,7,12,0,0,13,3,0,0,3,11,0,5,12,0,0,0,0,13,4,15,4,0,0,0,0,5,16,6,0,0,0],[0,0,1,11,15,8,0,0,0,0,0,15,16,8,0,0,0,0,0,13,16,10,0,0,0,0,0,16,16,6,0,0,0,0,2,16,16,6,0,0,0,0,5,16,16,5,0,0,0,0,5,16,15,1,0,0,0,0,2,15,15,3,0,0],[0,0,1,15,11,1,0,0,0,0,9,12,8,12,0,0,0,1,15,1,6,16,2,0,0,2,12,0,1,11,6,0,0,5,10,0,0,11,4,0,0,2,13,0,0,10,3,0,0,0,13,2,3,13,3,0,0,0,1,13,16,15,1,0],[0,0,6,15,13,2,0,0,0,1,15,10,11,14,0,0,0,2,16,3,1,16,4,0,0,4,12,0,1,14,4,0,0,4,10,0,0,15,3,0,0,4,12,0,0,15,3,0,0,1,13,9,11,16,2,0,0,0,4,12,14,5,0,0],[0,0,0,10,11,1,0,0,0,0,1,15,8,8,0,0,0,5,4,10,0,12,0,0,0,7,8,10,0,7,5,0,0,6,10,0,0,2,9,0,0,1,13,0,0,2,11,0,0,0,6,11,4,10,11,0,0,0,0,9,15,14,5,0],[0,0,5,16,15,4,0,0,0,3,15,13,13,12,0,0,0,7,14,1,0,16,5,0,0,12,9,0,1,11,10,0,0,10,10,0,0,7,13,0,0,6,15,0,0,8,12,0,0,1,14,7,6,15,11,0,0,0,5,15,16,14,3,0],[0,0,2,14,13,3,0,0,0,0,13,13,9,11,0,0,0,0,16,7,0,12,0,0,0,3,16,5,0,10,5,0,0,5,16,1,0,8,5,0,0,3,16,1,0,10,5,0,0,0,16,8,5,14,3,0,0,0,4,16,16,9,1,0],[0,0,4,12,14,5,0,0,0,0,11,16,16,16,3,0,0,3,16,14,2,16,7,0,0,8,16,7,0,16,6,0,0,4,16,4,3,16,4,0,0,4,16,5,10,14,0,0,0,0,14,16,16,10,0,0,0,0,4,14,14,2,0,0],[0,0,0,1,13,13,0,0,0,0,4,15,15,16,0,0,0,8,16,10,6,14,0,0,0,10,6,0,8,13,0,0,0,0,0,0,10,13,0,0,0,0,0,0,13,9,0,0,0,0,0,0,14,7,0,0,0,0,0,0,16,7,0,0],[0,0,3,16,12,1,0,0,0,0,10,16,16,0,0,0,0,0,12,16,12,0,0,0,0,0,13,16,10,0,0,0,0,0,16,16,1,0,0,0,0,0,16,16,0,0,0,0,0,0,10,16,1,0,0,0,0,0,2,13,9,0,0,0],[0,0,7,14,2,0,0,0,0,0,2,16,6,0,0,0,0,0,2,15,9,0,0,0,0,0,2,16,12,0,0,0,0,0,2,16,16,5,0,0,0,0,0,3,13,13,0,0,0,0,6,12,14,16,12,5,0,0,5,16,16,16,16,15],[0,0,0,12,10,0,0,0,0,0,0,14,16,2,0,0,0,0,0,13,16,0,0,0,0,0,0,11,16,3,0,0,0,0,0,10,16,3,0,0,0,0,0,11,16,2,0,0,0,0,0,14,16,2,0,0,0,0,0,11,14,0,0,0],[0,0,0,14,10,0,0,0,0,3,14,16,13,0,0,0,2,16,16,16,5,0,0,0,1,11,14,15,1,0,0,0,0,0,8,16,1,0,0,0,0,0,7,16,1,0,0,0,0,0,1,15,5,0,0,0,0,0,0,13,13,0,0,0],[0,0,0,0,5,15,6,0,0,0,0,4,15,16,4,0,0,3,11,16,10,16,4,0,0,4,11,3,0,16,4,0,0,0,0,0,1,16,4,0,0,0,0,0,3,16,3,0,0,0,0,0,5,16,4,0,0,0,0,0,6,15,4,0],[0,0,7,11,3,1,0,0,0,1,14,16,13,13,0,0,0,3,16,12,1,6,6,0,0,4,10,4,0,4,8,0,0,8,8,0,0,11,5,0,0,7,9,0,2,14,0,0,0,1,12,4,12,10,0,0,0,0,6,14,9,0,0,0],[0,0,2,14,9,1,0,0,0,1,12,12,11,8,0,0,0,4,14,1,0,13,3,0,0,8,13,0,0,10,6,0,0,5,16,1,0,8,9,0,0,0,16,0,0,11,9,0,0,0,13,11,10,15,4,0,0,0,3,15,16,5,0,0],[0,0,0,4,14,14,4,0,0,0,1,15,16,16,2,0,0,2,13,16,16,16,0,0,0,8,16,16,16,16,0,0,0,2,7,8,16,16,1,0,0,0,0,4,16,16,0,0,0,0,0,4,16,16,2,0,0,0,0,4,16,15,4,0],[0,0,0,13,9,0,0,0,0,0,0,14,15,1,0,0,0,0,0,13,16,0,0,0,0,0,0,11,16,0,0,0,0,0,0,10,16,2,0,0,0,0,0,14,16,1,0,0,0,0,0,15,16,1,0,0,0,0,0,12,15,0,0,0],[0,0,8,16,15,8,0,0,0,1,16,16,16,2,0,0,0,2,16,16,10,0,0,0,0,2,16,16,12,0,0,0,0,6,16,16,13,0,0,0,0,1,16,16,11,0,0,0,0,0,16,16,10,0,0,0,0,0,7,15,15,0,0,0],[0,0,4,12,13,5,0,0,0,0,14,16,16,16,4,0,0,6,13,2,1,11,8,0,0,6,11,0,0,8,8,0,0,4,16,0,0,10,8,0,0,4,16,4,8,16,3,0,0,0,16,16,16,12,0,0,0,0,4,15,14,3,0,0],[0,0,3,12,7,0,0,0,0,0,14,12,12,4,0,0,0,2,14,0,1,13,0,0,0,1,12,0,0,7,5,0,0,2,13,0,0,2,10,0,0,0,15,3,0,3,14,0,0,0,7,12,8,11,12,0,0,0,2,11,16,11,2,0],[0,0,6,12,11,0,0,0,0,0,12,16,15,0,0,0,0,0,13,16,14,2,0,0,0,1,15,16,11,2,0,0,0,0,9,16,10,0,0,0,0,0,9,16,14,5,0,0,0,0,10,16,16,14,0,0,0,0,4,11,12,8,0,0],[0,0,0,0,5,15,3,0,0,0,0,3,15,16,4,0,0,3,13,16,14,16,1,0,0,2,7,4,8,16,0,0,0,0,0,0,8,14,0,0,0,0,0,0,7,16,1,0,0,0,0,0,9,16,6,0,0,0,0,0,8,15,2,0],[0,0,9,15,6,0,0,0,0,2,16,16,16,7,0,0,0,4,14,5,11,13,0,0,0,7,12,0,0,12,4,0,0,8,11,0,0,7,5,0,0,4,13,1,1,10,6,0,0,2,16,15,15,14,1,0,0,0,8,15,11,4,0,0],[0,0,2,15,3,0,0,0,0,0,4,16,4,0,0,0,0,0,4,16,5,0,0,0,0,0,14,16,6,0,0,0,0,0,7,15,7,0,0,0,0,0,2,10,9,0,0,0,0,0,16,16,15,9,16,5,0,0,3,15,16,15,7,1],[0,0,4,16,16,4,0,0,0,0,10,15,12,14,0,0,0,2,11,0,0,9,6,0,0,5,6,0,0,4,5,0,0,4,9,0,0,7,4,0,0,4,10,0,2,14,0,0,0,0,14,15,16,8,0,0,0,0,4,13,10,0,0,0],[0,0,4,15,12,1,0,0,0,0,12,11,13,13,1,0,0,3,12,0,0,14,6,0,0,8,12,0,0,11,8,0,0,8,12,0,0,8,8,0,0,6,13,0,0,11,7,0,0,4,16,7,10,15,2,0,0,0,7,13,12,2,0,0],[0,0,4,15,11,1,0,0,0,2,14,14,16,8,0,0,0,8,15,2,3,13,0,0,0,4,16,0,0,12,7,0,0,7,16,0,0,12,8,0,0,3,16,6,1,14,9,0,0,0,15,16,16,16,2,0,0,0,4,13,14,6,0,0],[0,0,9,9,4,0,0,0,0,0,15,15,14,12,0,0,0,3,10,1,0,12,5,0,0,5,8,0,0,8,6,0,0,8,8,0,0,8,8,0,0,5,8,0,0,10,6,0,0,4,13,4,6,13,0,0,0,0,6,16,14,3,0,0],[0,0,3,15,12,2,0,0,0,0,1,16,16,6,0,0,0,0,4,16,16,2,0,0,0,0,3,16,16,6,0,0,0,0,4,16,16,0,0,0,0,0,1,15,16,6,0,0,0,0,4,16,16,4,0,0,0,0,4,16,16,6,0,0],[0,0,3,14,7,0,0,0,0,0,14,16,14,9,0,0,0,4,16,16,11,15,3,0,0,5,15,6,0,4,8,0,0,8,8,0,0,4,8,0,0,5,11,0,0,6,6,0,0,0,13,10,5,15,5,0,0,0,2,12,14,8,0,0],[0,0,0,10,13,3,0,0,0,0,8,16,14,12,0,0,0,3,16,13,0,14,1,0,0,5,16,6,0,14,5,0,0,6,16,0,0,15,4,0,0,2,13,1,5,16,4,0,0,0,10,16,16,14,1,0,0,0,2,11,13,6,0,0],[0,0,1,15,13,0,0,0,0,0,1,16,16,5,0,0,0,0,7,16,16,0,0,0,0,0,13,16,13,0,0,0,0,7,16,16,13,0,0,0,0,1,11,16,13,0,0,0,0,0,2,16,16,0,0,0,0,0,1,14,16,3,0,0],[0,0,10,16,14,2,0,0,0,3,16,9,8,14,0,0,0,5,16,3,2,15,6,0,0,5,16,3,0,12,10,0,0,7,14,0,0,12,11,0,0,7,16,1,3,16,5,0,0,4,16,7,12,11,1,0,0,0,10,16,14,3,0,0],[0,0,2,15,13,0,0,0,0,0,13,16,16,9,0,0,0,5,16,9,6,16,4,0,0,5,16,3,1,14,7,0,0,6,16,4,0,16,8,0,0,3,16,12,6,16,12,0,0,0,14,16,16,16,4,0,0,0,2,13,15,8,0,0],[0,0,0,16,11,1,0,0,0,0,13,16,10,9,0,0,0,2,16,11,1,14,2,0,0,3,16,1,0,8,7,0,0,4,13,0,0,8,9,0,0,3,16,1,0,10,9,0,0,0,10,8,3,16,4,0,0,0,1,11,16,13,1,0],[0,0,9,13,8,0,0,0,0,0,13,16,16,12,0,0,0,2,16,7,6,15,3,0,0,8,14,0,0,8,3,0,0,5,14,0,0,8,8,0,0,2,16,13,11,14,4,0,0,3,16,15,16,6,0,0,0,0,6,14,8,0,0,0]],"y_test":[0,1,1,1,0,1,1,1,1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,0,1,1,1,0,0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1,1,0,0,1,1,0,1,0,0,0,0,1,0,0,1,0,0,0,0],"train_py_source":"\"\"\"\u9810\u8a13\u7df4 64\u219210\u219210\u21922 DNN\uff088x8 \u624b\u5beb\u6578\u5b57 0/1 \u4e8c\u5206\u985e\uff09\uff0c\u8f38\u51fa weights.json \u4f9b index.html \u5d4c\u5165\u3002\"\"\"\nimport json\n\nimport numpy as np\nfrom sklearn.datasets import load_digits\nfrom sklearn.model_selection import train_test_split\n\nSEED = 42\nrng = np.random.default_rng(SEED)\n\n# \u8cc7\u6599\uff1asklearn digits \u672c\u8eab\u5c31\u662f 8x8\u3001\u50cf\u7d20 0-16\uff0c\u53ea\u53d6 0 \u8207 1\ndigits = load_digits()\nmask = digits.target < 2\nX = digits.data[mask] / 16.0\ny = digits.target[mask]\nX_train, X_test, y_train, y_test = train_test_split(\n    X, y, test_size=0.2, random_state=SEED, stratify=y\n)\nprint(f\"\u6a23\u672c\u6578\uff1atrain={len(X_train)}, test={len(X_test)}\")\n\n# \u521d\u59cb\u5316 64\u219210\u219210\u21922\ndef init(fan_in, fan_out):\n    return rng.normal(0, np.sqrt(1.0 / fan_in), (fan_in, fan_out))\n\nW1, b1 = init(64, 10), np.zeros(10)\nW2, b2 = init(10, 10), np.zeros(10)\nW3, b3 = init(10, 2), np.zeros(2)\n\nY = np.eye(2)[y_train]  # one-hot\nlr = 0.5\nfor epoch in range(2000):\n    # forward\n    h1 = np.tanh(X_train @ W1 + b1)\n    h2 = np.tanh(h1 @ W2 + b2)\n    z = h2 @ W3 + b3\n    z -= z.max(axis=1, keepdims=True)\n    p = np.exp(z)\n    p /= p.sum(axis=1, keepdims=True)\n    loss = -np.mean(np.sum(Y * np.log(p + 1e-12), axis=1))\n\n    # backward\n    n = len(X_train)\n    dz = (p - Y) / n\n    dW3, db3 = h2.T @ dz, dz.sum(axis=0)\n    dh2 = dz @ W3.T * (1 - h2**2)\n    dW2, db2 = h1.T @ dh2, dh2.sum(axis=0)\n    dh1 = dh2 @ W2.T * (1 - h1**2)\n    dW1, db1 = X_train.T @ dh1, dh1.sum(axis=0)\n\n    W1 -= lr * dW1; b1 -= lr * db1\n    W2 -= lr * dW2; b2 -= lr * db2\n    W3 -= lr * dW3; b3 -= lr * db3\n\n    if epoch % 200 == 0:\n        print(f\"epoch {epoch:4d}  loss={loss:.4f}\")\n\ndef forward(X):\n    h2 = np.tanh(np.tanh(X @ W1 + b1) @ W2 + b2)\n    z = h2 @ W3 + b3\n    z -= z.max(axis=1, keepdims=True)\n    p = np.exp(z)\n    return p / p.sum(axis=1, keepdims=True)\n\np_test = forward(X_test)\nacc = (p_test.argmax(axis=1) == y_test).mean()\ntest_loss = -np.mean(np.log(p_test[np.arange(len(y_test)), y_test] + 1e-12))\nprint(f\"test accuracy = {acc:.4f}, test loss = {test_loss:.4f}\")\nprint(f\"W3 \u7bc4\u570d\uff1amin={W3.min():.3f}, max={W3.max():.3f}\")\nprint(f\"b3 = {b3}\")\n\nout = {\n    \"W1\": np.round(W1, 5).tolist(), \"b1\": np.round(b1, 5).tolist(),\n    \"W2\": np.round(W2, 5).tolist(), \"b2\": np.round(b2, 5).tolist(),\n    \"W3_trained\": np.round(W3, 5).tolist(), \"b3\": np.round(b3, 5).tolist(),\n    # \u6e2c\u8a66\u96c6\u4ee5 8x8 \u6574\u6578 (0-16) \u5132\u5b58\uff0c\u524d\u7aef\u518d\u9664\u4ee5 16\n    \"X_test\": (X_test * 16).astype(int).tolist(),\n    \"y_test\": y_test.tolist(),\n}\nwith open(\"weights.json\", \"w\") as f:\n    json.dump(out, f)\nprint(\"\u5df2\u8f38\u51fa weights.json\")\n"};
+
+/* ================= Tab 切換 ================= */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ================= 共用：SVG 節點建立 ================= */
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs) {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  return el;
+}
+function drawDigitImage(canvas, px) {
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(8, 8);
+  for (let p = 0; p < 64; p++) {
+    const g = 255 - Math.round(px[p] / 16 * 255);
+    img.data[p * 4] = g; img.data[p * 4 + 1] = g; img.data[p * 4 + 2] = g; img.data[p * 4 + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/* ================================================================
+   TAB 1：前向傳播動畫
+   ================================================================ */
+function forwardFull(px) {
+  const x = px.map(v => v / 16);
+  const h1 = DATA.b1.map((b, j) => Math.tanh(x.reduce((s, xi, i) => s + xi * DATA.W1[i][j], b)));
+  const h2 = DATA.b2.map((b, j) => Math.tanh(h1.reduce((s, hi, i) => s + hi * DATA.W2[i][j], b)));
+  let z0 = DATA.b3[0], z1 = DATA.b3[1];
+  for (let i = 0; i < 10; i++) { z0 += h2[i] * DATA.W3_trained[i][0]; z1 += h2[i] * DATA.W3_trained[i][1]; }
+  const m = Math.max(z0, z1);
+  const e0 = Math.exp(z0 - m), e1 = Math.exp(z1 - m);
+  const p0 = e0 / (e0 + e1), p1 = e1 / (e0 + e1);
+  return { h1, h2, p: [p0, p1] };
+}
+
+/* ---- 經典節點連線圖（圓圈 + 全連接邊） ---- */
+const demoCanvas = document.getElementById('demoCanvas');
+const demoVerdict = document.getElementById('demoVerdict');
+const demoBtnZero = document.getElementById('demoBtnZero');
+const demoBtnOne = document.getElementById('demoBtnOne');
+const demoBtnPlay = document.getElementById('demoBtnPlay');
+const netSvg = document.getElementById('netSvg');
+
+const NET = { inX: 70, h1X: 330, h2X: 580, outX: 800, topY: 64, rowGap: 48, inR: 11, hR: 16, outR: 22 };
+const rowY = i => NET.topY + i * NET.rowGap;   // 10 列：y = 64 ～ 496
+const outY = [200, 360];
+const IN_FILL = '#ffe9a8', HID_FILL = '#c9e4f8', OUT_FILL = '#f8b9b0', NODE_STROKE = '#6b6a66';
+
+const netEdges = { in_h1: [], h1_h2: [], h2_out: [] };
+const netNodes = { h1: [], h2: [], out: [] };
+
+function makeNode(x, y, r, baseFill) {
+  const g = svgEl('g', {});
+  g.appendChild(svgEl('circle', { cx: x, cy: y, r, fill: baseFill, stroke: NODE_STROKE, 'stroke-width': 1.4 }));
+  const overlay = svgEl('circle', { cx: x, cy: y, r, class: 'node-fill', fill: 'var(--pos)', 'fill-opacity': 0 });
+  g.appendChild(overlay);
+  const title = svgEl('title', {});
+  g.appendChild(title);
+  netSvg.appendChild(g);
+  return { overlay, title };
+}
+
+function buildNet() {
+  // 邊先畫，才會墊在節點下層
+  const edgeLayer = svgEl('g', {});
+  const addEdges = (list, x1, y1s, x2, y2s, r1, r2) => {
+    for (let i = 0; i < y1s.length; i++) for (let j = 0; j < y2s.length; j++) {
+      const e = svgEl('line', { x1: x1 + r1, y1: y1s[i], x2: x2 - r2, y2: y2s[j], class: 'edge' });
+      edgeLayer.appendChild(e); list.push(e);
+    }
+  };
+  const rows = Array.from({ length: 10 }, (_, i) => rowY(i));
+  addEdges(netEdges.in_h1, NET.inX, rows, NET.h1X, rows, NET.inR, NET.hR);
+  addEdges(netEdges.h1_h2, NET.h1X, rows, NET.h2X, rows, NET.hR, NET.hR);
+  addEdges(netEdges.h2_out, NET.h2X, rows, NET.outX, outY, NET.hR, NET.outR);
+  netSvg.appendChild(edgeLayer);
+
+  // 輸入層（黃）：64 顆僅示意畫 10 顆
+  for (let i = 0; i < 10; i++) {
+    netSvg.appendChild(svgEl('circle', { cx: NET.inX, cy: rowY(i), r: NET.inR, fill: IN_FILL, stroke: NODE_STROKE, 'stroke-width': 1.2 }));
+  }
+  // 隱藏層（藍）×2
+  for (const [key, x] of [['h1', NET.h1X], ['h2', NET.h2X]]) {
+    for (let i = 0; i < 10; i++) netNodes[key].push(makeNode(x, rowY(i), NET.hR, HID_FILL));
+  }
+  // 輸出層（紅）＋圈內類別字＋機率標籤＋勝出綠圈
+  for (let j = 0; j < 2; j++) {
+    const node = makeNode(NET.outX, outY[j], NET.outR, OUT_FILL);
+    const lbl = svgEl('text', { x: NET.outX, y: outY[j] + 5, 'text-anchor': 'middle', 'font-size': 15, 'font-weight': 700, fill: '#3a3935', 'pointer-events': 'none' });
+    lbl.textContent = j;
+    netSvg.appendChild(lbl);
+    const pct = svgEl('text', { x: NET.outX, y: outY[j] - NET.outR - 12, 'text-anchor': 'middle', class: 'pct-label' });
+    pct.textContent = '';
+    netSvg.appendChild(pct);
+    const ring = svgEl('circle', { cx: NET.outX, cy: outY[j], r: NET.outR + 5, fill: 'none', stroke: 'var(--good)', 'stroke-width': 3, opacity: 0 });
+    netSvg.appendChild(ring);
+    netNodes.out.push({ ...node, pct, ring });
+  }
+  // 底部層標籤（仿經典圖）
+  const labels = [[NET.inX, '輸入層（64）'], [NET.h1X, '隱藏層 1（10）'], [NET.h2X, '隱藏層 2（10）'], [NET.outX, '輸出層（2）']];
+  for (const [x, t] of labels) {
+    const lb = svgEl('text', { x, y: 545, 'text-anchor': 'middle', class: 'layer-label' });
+    lb.textContent = t;
+    netSvg.appendChild(lb);
+  }
+}
+buildNet();
+
+function flashEdges(list) {
+  list.forEach(e => e.classList.add('flow'));
+  setTimeout(() => list.forEach(e => e.classList.remove('flow')), 480);
+}
+function setActivation(node, v) {
+  node.overlay.setAttribute('fill', v >= 0 ? 'var(--pos)' : 'var(--neg)');
+  node.overlay.setAttribute('fill-opacity', Math.min(1, Math.abs(v)).toFixed(2));
+  node.title.textContent = v.toFixed(2);
+}
+function resetNet() {
+  [...netNodes.h1, ...netNodes.h2, ...netNodes.out].forEach(n => {
+    n.overlay.setAttribute('fill-opacity', 0);
+    n.title.textContent = '';
+  });
+  netNodes.out.forEach(n => { n.pct.textContent = ''; n.ring.setAttribute('opacity', 0); });
+}
+
+let demoLabel = 0;
+let demoTimers = [];
+function playDemo(label) {
+  demoLabel = label;
+  demoTimers.forEach(clearTimeout);
+  demoTimers = [];
+  demoVerdict.classList.remove('show');
+  resetNet();
+
+  const idx = DATA.y_test.indexOf(label);
+  const px = DATA.X_test[idx];
+  drawDigitImage(demoCanvas, px);
+  const { h1, h2, p } = forwardFull(px);
+  const winner = p[1] > p[0] ? 1 : 0;
+
+  flashEdges(netEdges.in_h1);
+  demoTimers.push(setTimeout(() => {
+    netNodes.h1.forEach((n, i) => setActivation(n, h1[i]));
+    flashEdges(netEdges.h1_h2);
+  }, 400));
+  demoTimers.push(setTimeout(() => {
+    netNodes.h2.forEach((n, i) => setActivation(n, h2[i]));
+    flashEdges(netEdges.h2_out);
+  }, 850));
+  demoTimers.push(setTimeout(() => {
+    netNodes.out.forEach((n, j) => {
+      setActivation(n, p[j]);   // 機率 0~1，一律藍色系
+      n.overlay.setAttribute('fill', 'var(--pos)');
+      n.pct.textContent = (p[j] * 100).toFixed(1) + '%';
+      n.ring.setAttribute('opacity', j === winner ? 1 : 0);
+      n.title.textContent = `機率 ${(p[j] * 100).toFixed(1)}%`;
+    });
+    demoVerdict.textContent = `網路判定：這是「${winner}」（信心 ${(p[winner] * 100).toFixed(1)}%）`;
+    demoVerdict.className = 'demo-verdict show' + (winner === label ? ' correct' : '');
+  }, 1300));
+}
+demoBtnZero.addEventListener('click', () => {
+  demoBtnZero.classList.add('selected'); demoBtnOne.classList.remove('selected');
+  playDemo(0);
+});
+demoBtnOne.addEventListener('click', () => {
+  demoBtnOne.classList.add('selected'); demoBtnZero.classList.remove('selected');
+  playDemo(1);
+});
+demoBtnPlay.addEventListener('click', () => playDemo(demoLabel));
+
+
+document.getElementById('trainCode').textContent = DATA.train_py_source;
+
+/* ================================================================
+   TAB 2：旋鈕挑戰
+   ================================================================ */
+const N = DATA.X_test.length;
+const W_MAX = 2;               // 旋鈕範圍 ±2（訓練好的權重約在 ±1.45）
+let W3 = null;                 // 學生控制的 10x2 權重
+const b3 = DATA.b3;
+
+// 前三層凍結：載入時預先算好每張測試圖的 10 維隱藏特徵 h2
+const H2 = DATA.X_test.map(px => {
+  const x = px.map(v => v / 16);
+  const h1 = DATA.b1.map((b, j) => Math.tanh(x.reduce((s, xi, i) => s + xi * DATA.W1[i][j], b)));
+  return DATA.b2.map((b, j) => Math.tanh(h1.reduce((s, hi, i) => s + hi * DATA.W2[i][j], b)));
+});
+
+function evaluate(w = W3) {
+  let loss = 0, correct = 0;
+  const preds = new Array(N);
+  for (let s = 0; s < N; s++) {
+    const h = H2[s];
+    let z0 = b3[0], z1 = b3[1];
+    for (let i = 0; i < 10; i++) { z0 += h[i] * w[i][0]; z1 += h[i] * w[i][1]; }
+    const m = Math.max(z0, z1);
+    const e0 = Math.exp(z0 - m), e1 = Math.exp(z1 - m);
+    const p1 = e1 / (e0 + e1);
+    const y = DATA.y_test[s];
+    const pTrue = y === 1 ? p1 : 1 - p1;
+    loss += -Math.log(Math.max(pTrue, 1e-12));
+    const pred = p1 >= 0.5 ? 1 : 0;
+    if (pred === y) correct++;
+    preds[s] = { pred, conf: pred === 1 ? p1 : 1 - p1 };
+  }
+  return { loss: loss / N, correct, preds };
+}
+
+/* ---- 旋鈕 UI ---- */
+const knobGrid = document.getElementById('knobGrid');
+const knobs = [];
+const ANG = 135;    // 滿檔角度
+
+function arcPoint(a) {
+  const rad = a * Math.PI / 180;
+  return [32 + 24 * Math.sin(rad), 32 - 24 * Math.cos(rad)];
+}
+function knobArcPath(from, to) {
+  const [x1, y1] = arcPoint(from), [x2, y2] = arcPoint(to);
+  return `M ${x1} ${y1} A 24 24 0 0 ${to >= from ? 1 : 0} ${x2} ${y2}`;
+}
+
+function buildKnobs() {
+  const frag = document.createDocumentFragment();
+  for (const t of ['', '→ 判成「0」', '→ 判成「1」']) {
+    const d = document.createElement('div');
+    d.className = 'col-head'; d.textContent = t;
+    frag.appendChild(d);
+  }
+  for (let i = 0; i < 10; i++) {
+    const rh = document.createElement('div');
+    rh.className = 'row-head'; rh.textContent = 'n' + (i + 1);
+    frag.appendChild(rh);
+    for (let j = 0; j < 2; j++) {
+      const wrap = document.createElement('div');
+      wrap.className = 'knob';
+      const svg = svgEl('svg', { width: 64, height: 64, viewBox: '0 0 64 64' });
+      svg.appendChild(svgEl('path', {
+        d: knobArcPath(-ANG, ANG), fill: 'none',
+        stroke: 'var(--track)', 'stroke-width': 6, 'stroke-linecap': 'round',
+      }));
+      const arc = svgEl('path', {
+        d: '', fill: 'none', 'stroke-width': 6, 'stroke-linecap': 'round',
+      });
+      svg.appendChild(arc);
+      svg.appendChild(svgEl('circle', {
+        cx: 32, cy: 32, r: 15, fill: 'var(--neutral-mid)', stroke: 'var(--border)',
+      }));
+      const needle = svgEl('line', {
+        x1: 32, y1: 32, x2: 32, y2: 15,
+        stroke: 'var(--text-primary)', 'stroke-width': 2.5, 'stroke-linecap': 'round',
+      });
+      svg.appendChild(needle);
+      const valEl = document.createElement('div');
+      valEl.className = 'val'; valEl.textContent = '0.00';
+      wrap.appendChild(svg); wrap.appendChild(valEl);
+      const knob = { i, j, el: wrap, arc, needle, valEl };
+      attachKnobEvents(knob);
+      knobs.push(knob);
+      frag.appendChild(wrap);
+    }
+  }
+  knobGrid.appendChild(frag);
+}
+
+function paintKnob(k) {
+  const v = W3[k.i][k.j];
+  const a = (v / W_MAX) * ANG;
+  k.needle.setAttribute('transform', `rotate(${a} 32 32)`);
+  if (Math.abs(v) < 1e-4) {
+    k.arc.setAttribute('d', '');
+  } else {
+    k.arc.setAttribute('d', knobArcPath(0, a));
+    k.arc.setAttribute('stroke', v > 0 ? 'var(--pos)' : 'var(--neg)');
+    k.arc.setAttribute('stroke-opacity', (0.35 + 0.65 * Math.min(Math.abs(v) / W_MAX, 1)).toFixed(2));
+  }
+  k.valEl.textContent = v.toFixed(2);
+}
+
+function setWeight(k, v, countStep) {
+  v = Math.max(-W_MAX, Math.min(W_MAX, v));
+  if (v === W3[k.i][k.j]) return;
+  W3[k.i][k.j] = v;
+  paintKnob(k);
+  if (countStep) steps++;
+  refresh();
+}
+
+function attachKnobEvents(k) {
+  let startY = 0, startV = 0;
+  k.el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    k.el.setPointerCapture(e.pointerId);
+    k.el.classList.add('dragging');
+    startY = e.clientY; startV = W3[k.i][k.j];
+    steps++;
+  });
+  k.el.addEventListener('pointermove', e => {
+    if (!k.el.classList.contains('dragging')) return;
+    const sensitivity = e.shiftKey ? 0.004 : 0.015;  // Shift = 精細調整
+    setWeight(k, startV + (startY - e.clientY) * sensitivity, false);
+  });
+  const stop = () => k.el.classList.remove('dragging');
+  k.el.addEventListener('pointerup', stop);
+  k.el.addEventListener('pointercancel', stop);
+  k.el.addEventListener('wheel', e => {
+    e.preventDefault();
+    setWeight(k, W3[k.i][k.j] + (e.deltaY < 0 ? 0.02 : -0.02), true);
+  }, { passive: false });
+  k.el.addEventListener('dblclick', () => setWeight(k, 0, true));
+}
+
+/* ---- 儀表板 ---- */
+const lossValue = document.getElementById('lossValue');
+const lossDelta = document.getElementById('lossDelta');
+const accValue = document.getElementById('accValue');
+const accSub = document.getElementById('accSub');
+const stepCount = document.getElementById('stepCount');
+document.getElementById('nTotal').textContent = N;
+
+let prevLoss = null;
+let steps = 0;
+let history = [];
+const HISTORY_CAP = 600;
+
+function refresh(resetDelta) {
+  const { loss, correct, preds } = evaluate();
+  lossValue.textContent = loss.toFixed(4);
+  if (resetDelta || prevLoss === null) {
+    lossDelta.textContent = '轉動旋鈕，觀察誤差往哪走';
+    lossDelta.className = 'sub delta-flat';
+  } else {
+    const d = loss - prevLoss;
+    if (Math.abs(d) < 1e-6) {
+      lossDelta.textContent = '— 沒有變化';
+      lossDelta.className = 'sub delta-flat';
+    } else if (d < 0) {
+      lossDelta.textContent = `▼ 誤差下降 ${(-d).toFixed(4)}，方向對了！`;
+      lossDelta.className = 'sub delta-down';
+    } else {
+      lossDelta.textContent = `▲ 誤差上升 ${d.toFixed(4)}，往反方向轉！`;
+      lossDelta.className = 'sub delta-up';
+    }
+  }
+  prevLoss = loss;
+  accValue.textContent = (100 * correct / N).toFixed(1) + '%';
+  accSub.textContent = `判對 ${correct} / ${N} 張`;
+  stepCount.textContent = steps;
+
+  history.push(loss);
+  if (history.length > HISTORY_CAP) history = history.filter((_, i) => i % 2 === 0);
+  scheduleChart();
+  paintSamples(preds);
+}
+
+/* ---- 誤差歷史折線圖（單一序列，series-1 藍） ---- */
+const chart = document.getElementById('lossChart');
+let chartPending = false;
+function scheduleChart() {
+  if (chartPending) return;
+  chartPending = true;
+  requestAnimationFrame(() => { chartPending = false; drawChart(); });
+}
+function drawChart() {
+  const W = 640, H = 180, padL = 6, padR = 56, padT = 12, padB = 10;
+  const yMax = Math.max(...history, 0.01) * 1.05;
+  const xw = W - padL - padR, yh = H - padT - padB;
+  const xs = i => padL + (history.length < 2 ? xw : i / (history.length - 1) * xw);
+  const ys = v => padT + (1 - v / yMax) * yh;
+  const nodes = [];
+  for (let g = 0; g <= 3; g++) {
+    const y = padT + g / 3 * yh;
+    nodes.push(svgEl('line', {
+      x1: padL, y1: y, x2: padL + xw, y2: y,
+      stroke: 'var(--grid-line)', 'stroke-width': 1,
+    }));
+    const label = svgEl('text', {
+      x: padL + xw + 6, y: y + 4, 'font-size': 11, fill: 'var(--text-muted)',
+    });
+    const gv = yMax * (1 - g / 3);
+    label.textContent = gv >= 0.095 ? gv.toFixed(2) : gv.toPrecision(2);
+    nodes.push(label);
+  }
+  if (history.length) {
+    nodes.push(svgEl('polyline', {
+      points: history.map((v, i) => `${xs(i).toFixed(1)},${ys(v).toFixed(1)}`).join(' '),
+      fill: 'none', stroke: 'var(--series-1)', 'stroke-width': 2, 'stroke-linejoin': 'round',
+    }));
+    nodes.push(svgEl('circle', {
+      cx: xs(history.length - 1).toFixed(1), cy: ys(history[history.length - 1]).toFixed(1),
+      r: 4, fill: 'var(--series-1)', stroke: 'var(--surface-1)', 'stroke-width': 2,
+    }));
+  }
+  chart.replaceChildren(...nodes);
+}
+
+/* ---- 測試樣本畫廊 ---- */
+const samplesEl = document.getElementById('samples');
+const sampleNodes = [];
+function buildSamples() {
+  const frag = document.createDocumentFragment();
+  for (let s = 0; s < N; s++) {
+    const d = document.createElement('div');
+    d.className = 'sample';
+    const cv = document.createElement('canvas');
+    cv.width = 8; cv.height = 8;
+    drawDigitImage(cv, DATA.X_test[s]);
+    const badge = document.createElement('span');
+    badge.className = 'pred';
+    d.appendChild(cv); d.appendChild(badge);
+    frag.appendChild(d);
+    sampleNodes.push({ d, badge });
+  }
+  samplesEl.appendChild(frag);
+}
+function paintSamples(preds) {
+  for (let s = 0; s < N; s++) {
+    const { d, badge } = sampleNodes[s];
+    const ok = preds[s].pred === DATA.y_test[s];
+    d.classList.toggle('correct', ok);
+    badge.textContent = preds[s].pred;
+    d.title = `正確答案：${DATA.y_test[s]}．網路猜：${preds[s].pred}（信心 ${(preds[s].conf * 100).toFixed(0)}%）`;
+  }
+}
+
+/* ---- 控制按鈕 ---- */
+function setAllWeights(w3, msg) {
+  W3 = w3.map(r => r.slice());
+  knobs.forEach(paintKnob);
+  steps = 0;
+  history = [];
+  prevLoss = null;
+  refresh(true);
+  if (msg) { lossDelta.textContent = msg; lossDelta.className = 'sub delta-flat'; }
+}
+// 0 和 1 太好分，亂數權重常常碰巧全對；重抽直到起始狀態夠有挑戰性
+function randomW3() {
+  let best = null, bestLoss = -1;
+  for (let t = 0; t < 100; t++) {
+    const cand = Array.from({ length: 10 }, () => [
+      (Math.random() * 2 - 1) * 1.5,
+      (Math.random() * 2 - 1) * 1.5,
+    ]);
+    const r = evaluate(cand);
+    if (r.correct / N <= 0.85 && r.loss >= 0.5) return cand;
+    if (r.loss > bestLoss) { bestLoss = r.loss; best = cand; }
+  }
+  return best;
+}
+document.getElementById('btnRandom').addEventListener('click', () =>
+  setAllWeights(randomW3(), '權重已隨機打亂 — 開始挑戰，把誤差轉到最低！'));
+document.getElementById('btnZero').addEventListener('click', () =>
+  setAllWeights(Array.from({ length: 10 }, () => [0, 0]), '全部歸零 — 從中立狀態出發'));
+document.getElementById('btnAnswer').addEventListener('click', () =>
+  setAllWeights(DATA.W3_trained, '這是電腦用梯度下降訓練出的權重 — 看看誤差有多低'));
+
+/* ================= Tab1：手寫畫板 ================= */
+const drawCanvas = document.getElementById('drawCanvas');
+const drawCtx = drawCanvas.getContext('2d');
+const drawGrid = new Array(64).fill(0);   // 0~16，與網路輸入格式一致
+const drawFills = [document.getElementById('drawFill0'), document.getElementById('drawFill1')];
+const drawPcts = [document.getElementById('drawPct0'), document.getElementById('drawPct1')];
+const drawVerdict = document.getElementById('drawVerdict');
+const CELL = 30;   // 240px / 8 格
+
+function renderDrawCanvas() {
+  for (let r = 0; r < 8; r++) for (let c = 0; c < 8; c++) {
+    const g = 255 - Math.round(drawGrid[r * 8 + c] / 16 * 255);
+    drawCtx.fillStyle = `rgb(${g},${g},${g})`;
+    drawCtx.fillRect(c * CELL, r * CELL, CELL, CELL);
+  }
+  drawCtx.strokeStyle = 'rgba(0,0,0,0.07)';
+  drawCtx.lineWidth = 1;
+  for (let i = 1; i < 8; i++) {
+    drawCtx.beginPath(); drawCtx.moveTo(i * CELL, 0); drawCtx.lineTo(i * CELL, 240); drawCtx.stroke();
+    drawCtx.beginPath(); drawCtx.moveTo(0, i * CELL); drawCtx.lineTo(240, i * CELL); drawCtx.stroke();
+  }
+}
+function updateDrawResult() {
+  if (drawGrid.every(v => v === 0)) {
+    drawFills.forEach(f => f.style.width = '0%');
+    drawPcts.forEach(p => p.textContent = '–');
+    drawVerdict.textContent = '在左邊畫點什麼吧！';
+    drawVerdict.className = 'draw-verdict';
+    return;
+  }
+  const { p } = forwardFull(drawGrid);
+  const w = p[1] > p[0] ? 1 : 0;
+  for (let j = 0; j < 2; j++) {
+    drawFills[j].style.width = (p[j] * 100).toFixed(1) + '%';
+    drawPcts[j].textContent = (p[j] * 100).toFixed(1) + '%';
+  }
+  drawVerdict.textContent = `網路判定：「${w}」（信心 ${(p[w] * 100).toFixed(1)}%）`;
+  drawVerdict.className = 'draw-verdict decided';
+}
+let drawPending = false;
+function scheduleDrawUpdate() {
+  if (drawPending) return;
+  drawPending = true;
+  requestAnimationFrame(() => { drawPending = false; renderDrawCanvas(); updateDrawResult(); });
+}
+function daub(x, y) {   // 軟筆刷：中心 +10、四鄰 +4，模擬灰階抗鋸齒
+  const c = Math.floor(x / CELL), r = Math.floor(y / CELL);
+  const add = (rr, cc, amt) => {
+    if (rr < 0 || rr > 7 || cc < 0 || cc > 7) return;
+    const i = rr * 8 + cc;
+    drawGrid[i] = Math.min(16, drawGrid[i] + amt);
+  };
+  if (r < 0 || r > 7 || c < 0 || c > 7) return;
+  add(r, c, 10);
+  add(r - 1, c, 4); add(r + 1, c, 4); add(r, c - 1, 4); add(r, c + 1, 4);
+  scheduleDrawUpdate();
+}
+let drawing = false;
+drawCanvas.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  drawing = true;
+  drawCanvas.setPointerCapture(e.pointerId);
+  const b = drawCanvas.getBoundingClientRect();
+  daub(e.clientX - b.left, e.clientY - b.top);
+});
+drawCanvas.addEventListener('pointermove', e => {
+  if (!drawing) return;
+  const b = drawCanvas.getBoundingClientRect();
+  daub(e.clientX - b.left, e.clientY - b.top);
+});
+['pointerup', 'pointercancel'].forEach(t => drawCanvas.addEventListener(t, () => drawing = false));
+document.getElementById('drawClear').addEventListener('click', () => {
+  drawGrid.fill(0);
+  scheduleDrawUpdate();
+});
+renderDrawCanvas();
+
+/* ================= Tab1：第一層權重熱圖 ================= */
+(function buildHeatmaps() {
+  const row = document.getElementById('heatmapRow');
+  const POS = [42, 120, 214], NEG = [227, 73, 72], WHITE = [252, 252, 251];
+  const lerp = (a, b, t) => Math.round(a + (b - a) * t);
+  for (let j = 0; j < 10; j++) {
+    const cell = document.createElement('div');
+    cell.className = 'heatmap-cell';
+    const cv = document.createElement('canvas');
+    cv.width = 8; cv.height = 8;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(8, 8);
+    let maxAbs = 1e-9;
+    for (let i = 0; i < 64; i++) maxAbs = Math.max(maxAbs, Math.abs(DATA.W1[i][j]));
+    for (let i = 0; i < 64; i++) {
+      const t = DATA.W1[i][j] / maxAbs;   // -1 ~ 1，各神經元自行正規化
+      const col = t >= 0 ? POS : NEG;
+      const k = Math.abs(t);
+      img.data[i * 4] = lerp(WHITE[0], col[0], k);
+      img.data[i * 4 + 1] = lerp(WHITE[1], col[1], k);
+      img.data[i * 4 + 2] = lerp(WHITE[2], col[2], k);
+      img.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    const lbl = document.createElement('div');
+    lbl.className = 'lbl';
+    lbl.textContent = '神經元 ' + (j + 1);
+    cell.appendChild(cv); cell.appendChild(lbl);
+    row.appendChild(cell);
+  }
+})();
+
+/* ================= Tab2：電腦調一步（真實梯度下降） ================= */
+const GD_LR = 0.1;   // 刻意調小，讓下降過程分成多步、肉眼可見漸進趨勢
+document.getElementById('btnStep').addEventListener('click', () => {
+  // 輸出層解析梯度：dW3[i][j] = mean_s( h[i] * (p[j] - onehot(y)[j]) )
+  const grad = Array.from({ length: 10 }, () => [0, 0]);
+  for (let s = 0; s < N; s++) {
+    const h = H2[s];
+    let z0 = b3[0], z1 = b3[1];
+    for (let i = 0; i < 10; i++) { z0 += h[i] * W3[i][0]; z1 += h[i] * W3[i][1]; }
+    const m = Math.max(z0, z1);
+    const e0 = Math.exp(z0 - m), e1 = Math.exp(z1 - m);
+    const p0 = e0 / (e0 + e1), p1 = e1 / (e0 + e1);
+    const y = DATA.y_test[s];
+    const d0 = p0 - (y === 0 ? 1 : 0), d1 = p1 - (y === 1 ? 1 : 0);
+    for (let i = 0; i < 10; i++) { grad[i][0] += h[i] * d0; grad[i][1] += h[i] * d1; }
+  }
+  for (let i = 0; i < 10; i++) for (let j = 0; j < 2; j++) {
+    W3[i][j] = Math.max(-W_MAX, Math.min(W_MAX, W3[i][j] - GD_LR * grad[i][j] / N));
+  }
+  knobs.forEach(paintKnob);
+  steps++;
+  refresh();
+});
+
+/* ================= 啟動 ================= */
+buildKnobs();
+buildSamples();
+setAllWeights(randomW3(), '權重是隨機的 — 轉動旋鈕，把誤差壓到最低！');
+setTimeout(() => playDemo(0), 300);
+</script>
+</body>
+</html>

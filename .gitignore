@@ -1,0 +1,9 @@
+# Claude Code 本機工具設定（開發用，非教具的一部分）
+.claude/
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
