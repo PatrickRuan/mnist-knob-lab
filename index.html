@@ -24,8 +24,9 @@
   --track: #e1e0d9;
   --code-bg: #f3f2ee;
 }
+/* 深色變數集：以 OS 偏好套用（未手動指定時），或由 data-theme="dark" 強制套用 */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --surface-1: #1a1a19;
     --page: #0d0d0d;
     --text-primary: #ffffff;
@@ -45,6 +46,35 @@
     --code-bg: #141413;
   }
 }
+:root[data-theme="dark"] {
+  --surface-1: #1a1a19;
+  --page: #0d0d0d;
+  --text-primary: #ffffff;
+  --text-secondary: #c3c2b7;
+  --text-muted: #898781;
+  --grid-line: #2c2c2a;
+  --baseline: #383835;
+  --border: rgba(255,255,255,0.10);
+  --series-1: #3987e5;
+  --pos: #3987e5;
+  --neg: #e66767;
+  --neutral-mid: #383835;
+  --good: #0ca30c;
+  --good-text: #0ca30c;
+  --critical: #e66767;
+  --track: #2c2c2a;
+  --code-bg: #141413;
+}
+/* 主題切換鈕（右上固定） */
+.theme-toggle {
+  position: fixed; top: 16px; right: 16px; z-index: 100;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--border); background: var(--surface-1);
+  color: var(--text-primary); cursor: pointer;
+  font-size: 1.1rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}
+.theme-toggle:hover { background: var(--neutral-mid); }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -231,8 +261,18 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
 .heatmap-cell canvas { width: 64px; height: 64px; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--border); }
 .heatmap-cell .lbl { font-size: 0.72rem; color: var(--text-muted); }
 </style>
+<script>
+  // 開頁前先套用已儲存的主題，避免畫面閃爍
+  (function () {
+    try {
+      var t = localStorage.getItem('theme');
+      if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  })();
+</script>
 </head>
 <body>
+<button class="theme-toggle" id="themeToggle" aria-label="切換日夜主題" title="切換日夜主題"></button>
 <div class="tabbar">
   <button class="tab-btn active" id="tabBtn1" data-tab="tab1">① 網路如何判斷</button>
   <button class="tab-btn" id="tabBtn2" data-tab="tab2">② 旋鈕挑戰</button>
@@ -1132,6 +1172,29 @@ document.getElementById('btnStep').addEventListener('click', () => {
   steps++;
   refresh();
 });
+
+/* ================= 主題切換 ================= */
+const themeToggle = document.getElementById('themeToggle');
+function currentTheme() {
+  const forced = document.documentElement.dataset.theme;
+  if (forced === 'dark' || forced === 'light') return forced;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+function paintThemeToggle() {
+  // 顯示「點下去會切到的那一面」的圖示
+  themeToggle.textContent = currentTheme() === 'dark' ? '☀️' : '🌙';
+}
+themeToggle.addEventListener('click', () => {
+  const next = currentTheme() === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem('theme', next); } catch (e) {}
+  paintThemeToggle();
+});
+// 未手動指定時，跟隨系統偏好變化
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (!document.documentElement.dataset.theme) paintThemeToggle();
+});
+paintThemeToggle();
 
 /* ================= 啟動 ================= */
 buildKnobs();
