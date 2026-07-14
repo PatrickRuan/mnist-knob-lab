@@ -260,6 +260,69 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
 .heatmap-cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .heatmap-cell canvas { width: 64px; height: 64px; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--border); }
 .heatmap-cell .lbl { font-size: 0.72rem; color: var(--text-muted); }
+
+/* ---- Tab4：GPT 文字接龍 ---- */
+.ssl-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 760px) { .ssl-compare { grid-template-columns: 1fr; } }
+.ssl-card {
+  background: var(--neutral-mid); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.ssl-card h3 { font-size: 0.92rem; }
+.ssl-card .flow-line { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ssl-card .arrow { color: var(--text-muted); font-size: 1.1rem; }
+.ssl-digit { width: 56px; height: 56px; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--border); background: #fff; }
+.ssl-netbox {
+  border: 1.5px dashed var(--baseline); border-radius: 8px; padding: 6px 10px;
+  font-size: 0.78rem; color: var(--text-secondary); text-align: center; line-height: 1.4;
+}
+.ssl-answer { font-weight: 700; font-size: 1.05rem; }
+.ssl-tag {
+  align-self: flex-start; font-size: 0.76rem; border-radius: 99px; padding: 3px 10px;
+  background: var(--surface-1); border: 1px solid var(--border); color: var(--text-secondary);
+}
+.tok {
+  display: inline-block; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 6px; padding: 3px 8px; font-size: 0.88rem; margin: 2px;
+}
+.tok.target { background: var(--neg); border-color: var(--neg); color: #fff; font-weight: 700; }
+
+.ssl-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.ssl-table th {
+  text-align: left; font-size: 0.78rem; color: var(--text-muted); font-weight: 600;
+  padding: 4px 8px; border-bottom: 1px solid var(--border);
+}
+.ssl-table td { padding: 5px 8px; vertical-align: top; }
+.ssl-table tr.hidden-row { display: none; }
+.ssl-table td.prefix { color: var(--text-secondary); }
+.ssl-table td.nextword { color: var(--neg); font-weight: 700; white-space: nowrap; }
+.ssl-summary { display: none; margin-top: 10px; font-weight: 600; color: var(--good-text); font-size: 0.92rem; }
+.ssl-summary.show { display: block; }
+
+.lm-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+.lm-controls label { font-size: 0.88rem; cursor: pointer; }
+.lm-corpus-view { font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 12px; }
+.lm-corpus-view pre {
+  white-space: pre-wrap; background: var(--code-bg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 12px; margin-top: 6px; max-height: 180px; overflow-y: auto;
+  font-size: 0.78rem; line-height: 1.7;
+}
+.lm-sent {
+  min-height: 44px; background: var(--neutral-mid); border: 1px solid var(--border);
+  border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; line-height: 2;
+}
+.lm-sent .placeholder { color: var(--text-muted); font-size: 0.85rem; }
+.lm-sent .tok.done { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+.lm-cands { display: flex; flex-direction: column; gap: 6px; max-width: 560px; }
+.lm-cand { display: flex; align-items: center; gap: 10px; }
+.lm-cand button.word {
+  min-width: 92px; text-align: center; font-size: 0.9rem; padding: 5px 10px;
+}
+.lm-track { flex: 1; height: 14px; background: var(--track); border-radius: 7px; overflow: hidden; }
+.lm-fill { height: 100%; background: var(--series-1); }
+.lm-pct { width: 56px; text-align: right; font-size: 0.84rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.lm-end { color: var(--good-text); font-weight: 600; font-size: 0.9rem; margin-top: 8px; display: none; }
+.lm-end.show { display: block; }
 </style>
 <script>
   // 開頁前先套用已儲存的主題，避免畫面閃爍
@@ -277,6 +340,7 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
   <button class="tab-btn active" id="tabBtn1" data-tab="tab1">① 網路如何判斷</button>
   <button class="tab-btn" id="tabBtn2" data-tab="tab2">② 旋鈕挑戰</button>
   <button class="tab-btn" id="tabBtn3" data-tab="tab3">③ 這頁怎麼做的</button>
+  <button class="tab-btn" id="tabBtn4" data-tab="tab4">④ GPT 怎麼學</button>
 </div>
 
 <div class="page">
@@ -433,7 +497,7 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
   <header>
     <h1>這個網頁是怎麼做出來的？— Claude Code vibe coding 實錄</h1>
     <p>整個教具<strong>沒有手寫任何一行程式碼</strong>，全部用自然語言對話產生。
-       過程只有三輪 prompt：說目的 → 加 tab → 加這一頁。
+       從說目的、加 tab、加說明頁，到貼一張投影片就長出新單元——每一輪都只是幾句話。
        下面是每一輪我們說了什麼、Claude Code 實際做了哪些事。</p>
   </header>
 
@@ -549,6 +613,26 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
         <li>回答：只要 index.html 一個檔案，離線雙擊就能用</li>
       </ul>
     </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 7 輪</span>貼一張投影片，長出一個新單元</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        貼了一張「自監督式學習」的上課投影片（GPT 文字接龍：「南韓男星李鐘碩與歌手IU李知恩爆出熱戀」
+        逐步拆成七筆訓練資料），問：「你能理解這一張圖片嗎？如果可以，你會怎麼做出一個新 tab 給學生？」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li>先讀懂投影片的教學重點（答案藏在資料裡、不用人工標註、資料愈多影響愈勁），
+            並指出這正好補上教具缺的一塊：學生看完 tab ①② 一定會問「那 ChatGPT 是怎麼學的？」</li>
+        <li class="ask">提出三段式設計（監督 vs 自監督對照／「一句變七題」動畫／可以玩的迷你接龍模型），
+            再反問三個決策：例句用投影片原句還是換掉？互動要做到多深？要不要記進這頁實錄？</li>
+        <li>做出<strong>真的迷你語言模型</strong>：頁面內嵌兩組手寫語料（12 句 vs 60 句），
+            現場統計「每個詞後面接什麼、機率多少」，學生點詞接龍、看機率長條，
+            切換語料親身體會「資料多、接得順」——延續全案「一切都是真的運算」的原則</li>
+        <li class="test">瀏覽器實測動畫逐列出現、接龍機率合計 100%、自動接龍能走到句尾，推上 GitHub Pages</li>
+      </ul>
+    </div>
   </section>
 
   <section class="panel">
@@ -568,6 +652,86 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
         每一步都建立在「上一步已驗證 OK」的基礎上。</div>
     </div>
     <p class="hint" style="margin-top:12px;">工具鏈：Claude Code ＋ Python（numpy／scikit-learn，訓練用）＋ 純 vanilla HTML/CSS/JS（零外部相依，單一檔案）。</p>
+  </section>
+</section>
+
+<!-- ========== TAB 4：GPT 怎麼學（自監督式學習） ========== -->
+<section id="tab4" class="tab-panel">
+  <header>
+    <h1>GPT 是怎麼學的？— 文字接龍與自監督式學習</h1>
+    <p>前面的數字辨識是<strong>監督式學習</strong>：每張圖都有人先標好答案（0 或 1），
+       網路拿預測跟答案比對誤差。但 GPT 讀的是整個網路上的文字，沒有人幫每句話標答案——
+       它玩的是<strong>文字接龍</strong>：把句子遮住後半，猜下一個詞。
+       答案就藏在句子裡，所以叫「<strong>自</strong>監督式學習」。</p>
+  </header>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>兩種學習方式的差別 <small>（差在「答案從哪來」）</small></h2>
+    <div class="ssl-compare">
+      <div class="ssl-card">
+        <h3>監督式學習（我們的數字辨識）</h3>
+        <div class="flow-line">
+          <canvas class="ssl-digit" id="sslDigit" width="8" height="8"></canvas>
+          <span class="arrow">→</span>
+          <span class="ssl-netbox">64→10→10→2<br>神經網路</span>
+          <span class="arrow">→</span>
+          <span class="ssl-answer">「0」</span>
+        </div>
+        <span class="ssl-tag">👤 答案是人一張一張標的——資料有多少，取決於人力</span>
+      </div>
+      <div class="ssl-card">
+        <h3>自監督式學習（GPT）</h3>
+        <div class="flow-line">
+          <span><span class="tok">南韓</span><span class="tok">男星</span><span class="tok">李鐘碩</span><span class="tok">與</span></span>
+          <span class="arrow">⇒</span>
+          <span class="tok target">歌手</span>
+        </div>
+        <span class="ssl-tag">📄 答案（下一個詞）就藏在資料裡——整個網路的文字都是免費教材</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>一句話，免費變出七筆訓練資料 <small>（網路找來的資料，就開始文字接龍）</small></h2>
+    <p class="hint" style="margin-bottom:10px;">
+      「南韓男星李鐘碩與歌手IU李知恩爆出熱戀」——這句新聞標題經過斷詞後，
+      自己就能拆出 7 筆「輸入 ⇒ 答案」：</p>
+    <div class="demo-controls" style="margin-bottom:10px;">
+      <button class="primary" id="sslPlay">▶ 播放拆解過程</button>
+    </div>
+    <table class="ssl-table" id="sslTable">
+      <thead><tr><th>輸入文字</th><th>GPT 接龍（要猜的答案）</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="ssl-summary" id="sslSummary">✓ 一句話變出 7 筆訓練資料，全程不需要人工標註——這就是自監督。
+      模型再讀更多資料，各種字句知識的影響就愈強。</div>
+  </section>
+
+  <section class="panel">
+    <h2>自己玩：迷你文字接龍模型 <small>（頁面現場統計出的真機率，不是預錄的）</small></h2>
+    <p class="hint" style="margin-bottom:10px;">
+      這是一個超迷你的語言模型：從下面的語料庫統計「每個詞後面接什麼詞、機率多少」。
+      選一個開頭，看模型給的候選，一路接下去——這就是 GPT 生成文字的原理。</p>
+    <div class="lm-controls">
+      <span style="font-size:0.85rem;color:var(--text-muted);">語料庫：</span>
+      <label><input type="radio" name="lmCorpus" value="small" checked> 小語料（12 句）</label>
+      <label><input type="radio" name="lmCorpus" value="large"> 大語料（60 句）</label>
+    </div>
+    <details class="lm-corpus-view"><summary>看語料庫內容（模型只讀過這些句子）</summary><pre id="lmCorpusText"></pre></details>
+    <div class="lm-sent" id="lmSent"></div>
+    <div class="demo-controls" style="margin-bottom:12px;">
+      <select id="lmStart"></select>
+      <button id="lmRestart">開頭重來</button>
+      <button class="primary" id="lmAuto">🎲 自動接龍</button>
+    </div>
+    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;">下一個詞的機率（點一個接上去）：</div>
+    <div class="lm-cands" id="lmCands"></div>
+    <div class="lm-end" id="lmEnd">✓ 句子結束了！（模型接到了「句號」）換個開頭再玩，或切到大語料比較看看。</div>
+    <p class="hint" style="margin-top:12px;">
+      試試看：<strong>先用小語料接幾句，再切到大語料</strong>——候選變多、句子變順，
+      這就是投影片說的「模型讀更多資料，發生不同字句知識的影響較勁」。
+      GPT 的原理跟這完全一樣，只是語料是幾兆個詞、可調的「旋鈕」（參數）有幾千億顆——
+      而那些旋鈕，就是用 tab ② 你玩過的梯度下降去轉的。</p>
   </section>
 </section>
 
@@ -1172,6 +1336,243 @@ document.getElementById('btnStep').addEventListener('click', () => {
   steps++;
   refresh();
 });
+
+/* ================= Tab4：GPT 文字接龍 ================= */
+/* 概念對照：畫一張真實的「0」測試圖 */
+drawDigitImage(document.getElementById('sslDigit'), DATA.X_test[DATA.y_test.indexOf(0)]);
+
+/* ---- 4.2 一句變七題動畫 ---- */
+const SSL_SENT = ['南韓', '男星', '李鐘碩', '與', '歌手', 'IU李知恩', '爆出', '熱戀'];
+const sslTbody = document.querySelector('#sslTable tbody');
+const sslSummary = document.getElementById('sslSummary');
+let sslTimers = [];
+
+function sslBuildRows() {
+  sslTbody.replaceChildren();
+  for (let i = 1; i < SSL_SENT.length; i++) {
+    const tr = document.createElement('tr');
+    tr.className = 'hidden-row';
+    const td1 = document.createElement('td');
+    td1.className = 'prefix';
+    td1.textContent = SSL_SENT.slice(0, i).join('\\') + ' ⇒';
+    const td2 = document.createElement('td');
+    td2.className = 'nextword';
+    td2.textContent = SSL_SENT[i];
+    tr.append(td1, td2);
+    sslTbody.appendChild(tr);
+  }
+}
+sslBuildRows();
+
+document.getElementById('sslPlay').addEventListener('click', () => {
+  sslTimers.forEach(clearTimeout);
+  sslTimers = [];
+  sslSummary.classList.remove('show');
+  sslBuildRows();
+  const rows = [...sslTbody.children];
+  rows.forEach((tr, i) => {
+    sslTimers.push(setTimeout(() => {
+      tr.classList.remove('hidden-row');
+      if (i === rows.length - 1) sslSummary.classList.add('show');
+    }, 600 * (i + 1)));
+  });
+});
+
+/* ---- 4.3 迷你 bigram 語言模型 ---- */
+const LM_SMALL = [
+  '南韓 男星 李鐘碩 與 歌手 IU李知恩 爆出 熱戀',
+  '南韓 歌手 IU李知恩 推出 新專輯',
+  '男星 李鐘碩 主演 新戲',
+  '歌手 IU李知恩 獲得 大獎',
+  '南韓 男星 主演 電影 爆出 好評',
+  '我們 老師 今天 教 神經網路',
+  '神經網路 會 預測 下一個 詞',
+  '我們 今天 上課 學 文字接龍',
+  '老師 說 模型 讀 愈多 資料 愈 聰明',
+  '模型 會 預測 下一個 詞',
+  '台灣 棒球隊 贏得 世界 冠軍',
+  '台灣 珍珠奶茶 風靡 世界',
+];
+const LM_LARGE = LM_SMALL.concat([
+  '南韓 女星 與 男星 爆出 緋聞',
+  '南韓 天團 來 台灣 開 演唱會',
+  '南韓 電影 獲得 國際 大獎',
+  '男星 與 女星 爆出 婚訊',
+  '女星 主演 新戲 獲得 好評',
+  '歌手 推出 新專輯 獲得 好評',
+  '天團 推出 新專輯 風靡 世界',
+  '李鐘碩 與 IU李知恩 合作 新戲',
+  'IU李知恩 主演 電影 獲得 大獎',
+  '新戲 獲得 觀眾 好評',
+  '電影 獲得 觀眾 好評',
+  '觀眾 說 新戲 很 好看',
+  '記者 爆出 男星 與 歌手 熱戀',
+  '記者 說 南韓 天團 要 來 台灣',
+  '台灣 觀眾 喜歡 南韓 電影',
+  '台灣 歌手 推出 新專輯',
+  '世界 冠軍 是 台灣 棒球隊',
+  '棒球隊 今天 贏得 比賽',
+  '我們 今天 看 棒球 比賽',
+  '我們 老師 說 神經網路 很 有趣',
+  '老師 今天 教 我們 梯度下降',
+  '梯度下降 會 降低 誤差',
+  '神經網路 靠 梯度下降 學習',
+  '模型 靠 資料 學習',
+  '模型 讀 愈多 資料 愈 聰明',
+  '資料 愈多 模型 愈 聰明',
+  '我們 上課 學 神經網路',
+  '學生 上課 學 文字接龍',
+  '學生 說 文字接龍 很 有趣',
+  '文字接龍 就是 預測 下一個 詞',
+  '預測 下一個 詞 就是 自監督 學習',
+  '自監督 學習 不用 人工 標註',
+  '人工 標註 很 花 時間',
+  'GPT 靠 文字接龍 學習',
+  'GPT 讀 愈多 資料 愈 聰明',
+  'GPT 會 預測 下一個 詞',
+  '下一個 詞 由 機率 決定',
+  '機率 大 的 詞 常 被 選中',
+  '老師 說 GPT 就是 文字接龍',
+  '我們 喜歡 上 老師 的 課',
+  '珍珠奶茶 是 台灣 的 驕傲',
+  '世界 都 喜歡 台灣 珍珠奶茶',
+  '演唱會 門票 很 快 賣完',
+  '天團 演唱會 門票 賣完',
+  '歌手 在 演唱會 演唱 新歌',
+  '新歌 獲得 歌迷 好評',
+  '歌迷 喜歡 IU李知恩 的 新歌',
+  '熱戀 消息 獲得 歌迷 祝福',
+]);
+const LM_BOS = '<s>', LM_EOS = '</s>';
+
+const lmSentEl = document.getElementById('lmSent');
+const lmCandsEl = document.getElementById('lmCands');
+const lmStartSel = document.getElementById('lmStart');
+const lmEndEl = document.getElementById('lmEnd');
+const lmCorpusTextEl = document.getElementById('lmCorpusText');
+
+let lmBigram = {};       // {word: {next: count}}
+let lmChain = [];        // 目前句子的詞
+let lmAutoTimer = null;
+
+function lmBuild(corpus) {
+  lmBigram = {};
+  for (const line of corpus) {
+    const toks = [LM_BOS, ...line.split(' '), LM_EOS];
+    for (let i = 0; i < toks.length - 1; i++) {
+      (lmBigram[toks[i]] ??= {})[toks[i + 1]] = (lmBigram[toks[i]][toks[i + 1]] || 0) + 1;
+    }
+  }
+}
+function lmDist(word) {
+  const nexts = lmBigram[word] || {};
+  const total = Object.values(nexts).reduce((a, b) => a + b, 0);
+  return Object.entries(nexts)
+    .map(([w, c]) => ({ w, p: c / total }))
+    .sort((a, b) => b.p - a.p);
+}
+function lmCurrentCorpus() {
+  return document.querySelector('input[name="lmCorpus"]:checked').value === 'large' ? LM_LARGE : LM_SMALL;
+}
+
+function lmRenderSent() {
+  lmSentEl.replaceChildren();
+  if (!lmChain.length) {
+    const ph = document.createElement('span');
+    ph.className = 'placeholder';
+    ph.textContent = '（選一個開頭詞開始接龍）';
+    lmSentEl.appendChild(ph);
+    return;
+  }
+  for (const w of lmChain) {
+    const s = document.createElement('span');
+    s.className = 'tok done';
+    s.textContent = w;
+    lmSentEl.appendChild(s);
+  }
+}
+function lmRenderCands() {
+  lmCandsEl.replaceChildren();
+  lmEndEl.classList.remove('show');
+  if (lmChain.length && lmChain[lmChain.length - 1] === '。') return;
+  const last = lmChain.length ? lmChain[lmChain.length - 1] : LM_BOS;
+  const dist = lmDist(last).slice(0, 5);
+  for (const { w, p } of dist) {
+    const row = document.createElement('div');
+    row.className = 'lm-cand';
+    const btn = document.createElement('button');
+    btn.className = 'word';
+    btn.textContent = w === LM_EOS ? '。（結束）' : w;
+    btn.addEventListener('click', () => lmAppend(w));
+    const track = document.createElement('div');
+    track.className = 'lm-track';
+    const fill = document.createElement('div');
+    fill.className = 'lm-fill';
+    fill.style.width = (p * 100).toFixed(1) + '%';
+    track.appendChild(fill);
+    const pct = document.createElement('span');
+    pct.className = 'lm-pct';
+    pct.textContent = (p * 100).toFixed(1) + '%';
+    row.append(btn, track, pct);
+    lmCandsEl.appendChild(row);
+  }
+}
+function lmAppend(w) {
+  if (w === LM_EOS) {
+    lmChain.push('。');
+    lmRenderSent();
+    lmCandsEl.replaceChildren();
+    lmEndEl.classList.add('show');
+    return;
+  }
+  lmChain.push(w);
+  lmRenderSent();
+  lmRenderCands();
+}
+function lmSample(dist) {
+  let r = Math.random();
+  for (const { w, p } of dist) { r -= p; if (r <= 0) return w; }
+  return dist[dist.length - 1].w;
+}
+function lmReset() {
+  clearInterval(lmAutoTimer);
+  lmChain = [];
+  if (lmStartSel.value) lmChain.push(lmStartSel.value);
+  lmRenderSent();
+  lmRenderCands();
+}
+function lmRebuild() {
+  const corpus = lmCurrentCorpus();
+  lmBuild(corpus);
+  lmCorpusTextEl.textContent = corpus.map(s => s.replace(/ /g, '')).join('\n');
+  // 開頭詞選單 = 語料中的句首詞（依出現機率排序）
+  const prevStart = lmStartSel.value;
+  lmStartSel.replaceChildren();
+  for (const { w } of lmDist(LM_BOS)) {
+    const opt = document.createElement('option');
+    opt.value = w;
+    opt.textContent = '開頭：' + w;
+    lmStartSel.appendChild(opt);
+  }
+  if (prevStart && [...lmStartSel.options].some(o => o.value === prevStart)) lmStartSel.value = prevStart;
+  lmReset();
+}
+document.querySelectorAll('input[name="lmCorpus"]').forEach(r => r.addEventListener('change', lmRebuild));
+lmStartSel.addEventListener('change', lmReset);
+document.getElementById('lmRestart').addEventListener('click', lmReset);
+document.getElementById('lmAuto').addEventListener('click', () => {
+  clearInterval(lmAutoTimer);
+  if (!lmChain.length || lmChain[lmChain.length - 1] === '。') lmReset();
+  lmAutoTimer = setInterval(() => {
+    const last = lmChain.length ? lmChain[lmChain.length - 1] : LM_BOS;
+    if (last === '。' || lmChain.length >= 15) { clearInterval(lmAutoTimer); return; }
+    const dist = lmDist(last);
+    if (!dist.length) { clearInterval(lmAutoTimer); return; }
+    lmAppend(lmSample(dist));
+  }, 300);
+});
+lmRebuild();
+
 
 /* ================= 主題切換 ================= */
 const themeToggle = document.getElementById('themeToggle');
