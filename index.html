@@ -341,12 +341,13 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
 
 .attn-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
 #attnSvg { width: 100%; height: auto; }
-#attnSvg .attn-rect { fill: var(--surface-1); stroke: var(--border); rx: 6; cursor: pointer; }
-#attnSvg .attn-rect.sel { fill: var(--series-1); stroke: var(--series-1); }
-#attnSvg .attn-word { font-size: 15px; fill: var(--text-primary); pointer-events: none; }
-#attnSvg .attn-word.sel { fill: #fff; font-weight: 700; }
-#attnSvg path.arc { fill: none; stroke: var(--series-1); opacity: 0.8; }
-#attnSvg .attn-w { font-size: 11px; fill: var(--text-muted); pointer-events: none; }
+/* 主卡（#attnSvg）與蘋果對比卡（.cmp-svg）共用同一套樣式 */
+#attnSvg .attn-rect, .cmp-svg .attn-rect { fill: var(--surface-1); stroke: var(--border); rx: 6; cursor: pointer; }
+#attnSvg .attn-rect.sel, .cmp-svg .attn-rect.sel { fill: var(--series-1); stroke: var(--series-1); }
+#attnSvg .attn-word, .cmp-svg .attn-word { font-size: 15px; fill: var(--text-primary); pointer-events: none; }
+#attnSvg .attn-word.sel, .cmp-svg .attn-word.sel { fill: #fff; font-weight: 700; }
+#attnSvg path.arc, .cmp-svg path.arc { fill: none; stroke: var(--series-1); opacity: 0.8; }
+#attnSvg .attn-w, .cmp-svg .attn-w { font-size: 11px; fill: var(--text-muted); pointer-events: none; }
 .attn-hint-inline { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px; }
 .attn-compare { display: none; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
 .attn-compare.show { display: grid; }
