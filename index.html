@@ -355,6 +355,28 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
 .attn-cmp-card { background: var(--neutral-mid); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
 .attn-cmp-card h4 { font-size: 0.85rem; margin-bottom: 6px; color: var(--text-secondary); }
 .attn-cmp-card svg { width: 100%; height: auto; }
+
+/* ---- Tab6：word2vec 訓練詞向量 ---- */
+#w2vNetSvg { width: 100%; height: auto; }
+#w2vNetSvg .layer-label { fill: var(--text-secondary); font-size: 13px; }
+#w2vNetSvg .note { fill: var(--neg); font-size: 12.5px; font-weight: 700; }
+.w2v-argue { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+@media (max-width: 760px) { .w2v-argue { grid-template-columns: 1fr; } }
+.w2v-train-layout { display: flex; gap: 14px; align-items: stretch; }
+@media (max-width: 900px) { .w2v-train-layout { flex-direction: column; } }
+#w2vMapSvg { flex: 1; min-width: 0; height: auto; background: var(--neutral-mid); border-radius: 10px; border: 1px solid var(--border); }
+#w2vMapSvg text { font-size: 11px; fill: var(--text-secondary); pointer-events: none; }
+#w2vMapSvg circle.pt { fill: var(--series-1); fill-opacity: 0.75; cursor: pointer; }
+#w2vMapSvg circle.pt:hover, #w2vMapSvg circle.pt.sel { fill: var(--neg); fill-opacity: 1; }
+.w2v-side { width: 250px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 10px; }
+.w2v-meter { background: var(--neutral-mid); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.w2v-meter .lbl { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 2px; }
+.w2v-meter .val { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.w2v-meter .val.good { color: var(--good-text); }
+.w2v-meter .sub { font-size: 0.75rem; color: var(--text-muted); }
+.w2v-progress { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; margin-top: 4px; }
+.w2v-progress > div { height: 100%; width: 0%; background: var(--series-1); transition: width 0.15s linear; }
+.w2v-nb-title { font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); }
 </style>
 <script>
   // 開頁前先套用已儲存的主題，避免畫面閃爍
@@ -374,6 +396,7 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
   <button class="tab-btn" id="tabBtn3" data-tab="tab3">③ 這頁怎麼做的</button>
   <button class="tab-btn" id="tabBtn4" data-tab="tab4">④ GPT 怎麼學</button>
   <button class="tab-btn" id="tabBtn5" data-tab="tab5">⑤ 詞的地圖與注意力</button>
+  <button class="tab-btn" id="tabBtn6" data-tab="tab6">⑥ 訓練詞向量</button>
 </div>
 
 <div class="page">
@@ -688,6 +711,32 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
         <li class="test">驗證地圖聚類、蘋果對比、tab ④ 接龍不受新語料影響，推上 GitHub Pages</li>
       </ul>
     </div>
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 9 輪</span>先確認觀念，再貼投影片</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「我可以說 word embedding 常常是用<strong>一層 hidden layer 的神經網路</strong>去訓練，
+        取輸入層的權重當 word embedding，對嗎？」接著貼了四張 word2vec/skip-gram
+        投影片（貓／狗語料 → one-hot 輸入 → 相同目標輸出 → 兩詞的輸入層權重被訓練得
+        幾乎一樣）：「再做一個 tab，word2vec 超級有趣，也提供一個程式，
+        套用剛剛的語料訓練看看。」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li>確認說法正確（這正是 Word2Vec/skip-gram），並點出跟 tab ⑤ 的差異：
+            tab ⑤ 是統計算出詞向量、這次是<strong>訓練</strong>出來——殊途同歸</li>
+        <li class="test">動工前先用 Python 拿 66 句語料原型驗證：D=2、60 epochs，
+            cos(男星,女星) 真的收斂到 +1.00，而且只要 0.2 秒——確認可行才寫計畫</li>
+        <li class="fix">寫好网頁版現場訓練後複測才發現：D=2 塞 102 個詞太擠，
+            除了「男星/女星」這種訊號極強的詞對，其他詞的最近鄰全部塌縮成雜訊；
+            改用 D=4 訓練＋PCA 投影成 2D 地圖，最近鄰立刻變得有意義
+            （蘋果→好吃/新手機，還意外呼應了 tab ⑤ 的蘋果多義詞哏）</li>
+        <li>JS 現場重寫 skip-gram 訓練迴圈（含手刻的簡易 PCA power iteration），
+            用 requestAnimationFrame 把 60 epochs 分幀播放成「地圖從亂到聚」的動畫；
+            word2vec.py 進 repo、原始碼直接嵌入頁面（同 tab ① 的 train.py 模式）</li>
+        <li class="test">瀏覽器驗證訓練動畫、相似度追蹤器、最近鄰查詢，六個 tab 互不干擾後推上 GitHub Pages</li>
+      </ul>
+    </div>
   </section>
 
   <section class="panel">
@@ -858,6 +907,241 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
       這是玩具版注意力：直接拿詞向量算內積再 softmax。真正的 transformer 會先把身分證
       投影成 Q（我在找什麼）、K（我是什麼）、V（我能提供什麼）再算，而且有很多組「注意力頭」同時看
       ——但流程一樣：<strong>先查全語料的身分證，再算當下句子的關係</strong>。</p>
+  </section>
+</section>
+
+<!-- ========== TAB 6：word2vec 訓練詞向量 ========== -->
+<section id="tab6" class="tab-panel">
+  <header>
+    <h1>word2vec — 詞向量是「訓練」出來的</h1>
+    <p>tab ⑤ 的詞地圖是<strong>統計</strong>算出來的；業界更經典的做法是 <strong>word2vec</strong>：
+       訓練一個只有<strong>一層 hidden layer</strong> 的神經網路玩「猜鄰居」遊戲（skip-gram），
+       訓練完把輸出層丟掉，<strong>把輸入層的權重直接當作詞向量</strong>。
+       這一頁用同一份 66 句語料，在你的瀏覽器裡現場訓練一次給你看。</p>
+  </header>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>網路長什麼樣？ <small>（一層 hidden layer，輸入層權重就是詞向量）</small></h2>
+    <svg id="w2vNetSvg" viewBox="0 0 860 440" role="img" aria-label="word2vec skip-gram 網路結構圖"></svg>
+    <p class="hint">輸入是 one-hot：整排只有「男星」那一格是 1，其他都是 0——
+      所以第一層權重矩陣（102×4）中<strong>只有「男星」那一列會被選中、被更新</strong>。
+      訓練完，那一列就是「男星」的 4 維詞向量。Keras 的 <code>Embedding</code> 層做的正是這件事。</p>
+    <div class="w2v-argue">
+      <div class="ssl-card">
+        <h3>🐱🐶 貓狗論證（用我們語料的「男星／女星」）</h3>
+        <p style="font-size:0.86rem;line-height:1.7;color:var(--text-secondary);">
+          語料裡「<strong>男星</strong> 與 女星 爆出 婚訊」「南韓 <strong>女星</strong> 與 男星 爆出 緋聞」——
+          兩個詞的鄰居幾乎相同，也就是<strong>兩筆訓練資料想要相同的輸出</strong>。
+          要讓輸出相同，最省力的辦法就是把兩列權重調成幾乎一樣——
+          梯度下降就這樣「被逼著」把同類詞的向量推在一起。</p>
+      </div>
+      <div class="ssl-card">
+        <h3>📊 跟 tab ⑤ 殊途同歸</h3>
+        <p style="font-size:0.86rem;line-height:1.7;color:var(--text-secondary);">
+          tab ⑤ 用統計（共現＋降維）、這一頁用訓練（梯度下降），
+          做出來的地圖性質相同——理論上 skip-gram 等價於對 PMI 矩陣做隱式分解。
+          差別是 word2vec 只需一對一對地看資料，<strong>語料再大都訓練得動</strong>，
+          這是它成為業界標準的原因。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>訓練資料製造機 <small>（skip-gram：中心詞 → 猜視窗 ±2 的鄰居）</small></h2>
+    <div class="demo-controls" style="margin-bottom:10px;">
+      <select id="w2vSent"></select>
+      <button class="primary" id="w2vExpand">▶ 展開成訓練對</button>
+    </div>
+    <table class="ssl-table" id="w2vPairTable">
+      <thead><tr><th>輸入（中心詞）</th><th>要猜的鄰居</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="ssl-summary" id="w2vPairSummary"></div>
+  </section>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>現場訓練！ <small>（V=102、D=4、視窗 ±2——就在你的瀏覽器裡跑梯度下降）</small></h2>
+    <div class="demo-controls" style="margin-bottom:12px;">
+      <button class="primary" id="w2vTrain">▶ 開始訓練（60 epochs）</button>
+      <button id="w2vReset">🔄 重新隨機初始化</button>
+    </div>
+    <div class="w2v-train-layout">
+      <svg id="w2vMapSvg" viewBox="0 0 620 470"></svg>
+      <div class="w2v-side">
+        <div class="w2v-meter">
+          <div class="lbl">訓練進度</div>
+          <div class="val" id="w2vEpoch">epoch 0 / 60</div>
+          <div class="w2v-progress"><div id="w2vProg"></div></div>
+          <div class="sub" style="margin-top:4px;">平均 loss：<span id="w2vLoss">–</span></div>
+        </div>
+        <div class="w2v-meter">
+          <div class="lbl">🐱🐶 cos(男星, 女星)</div>
+          <div class="val good" id="w2vSimGood">–</div>
+          <div class="sub">上下文相同 → 應該爬向 +1.00</div>
+        </div>
+        <div class="w2v-meter">
+          <div class="lbl">cos(男星, 珍珠奶茶)</div>
+          <div class="val" id="w2vSimBad">–</div>
+          <div class="sub">不相關 → 應該保持低</div>
+        </div>
+        <div class="w2v-nb-title" id="w2vNbTitle" style="display:none;">最近鄰</div>
+        <div id="w2vNeighbors"></div>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:12px;">
+      這跟 tab ② 是同一件事：定義誤差（猜鄰居的 cross-entropy）→ 梯度下降轉旋鈕。
+      只是這裡的「旋鈕」是第一層的 102×4 = 408 個權重，而且訓練完<strong>不丟掉</strong>——
+      拿來當每個詞的身分證。（實測發現只給 2 維會讓 102 個詞塞得太擠、方向糊在一起，
+      所以實際訓練用 4 維，地圖是用 PCA 投影成 2D 畫出來的——跟 tab ⑤ 的降維手法相同。）
+      初始位置是隨機的，每按一次「重新初始化」再訓練，
+      地圖長相會不同，但<strong>同類詞聚在一起的結構每次都會出現</strong>。
+      訓練完可點地圖上的詞看最近鄰。</p>
+  </section>
+
+  <section class="panel">
+    <h2>word2vec 的 Python 程式碼 <small>（repo 內的 word2vec.py，可直接執行）</small></h2>
+    <div class="code-panel"><pre id="w2vCode">&quot;&quot;&quot;迷你 word2vec（skip-gram）：單一 hidden layer 的網路，取輸入層權重當詞向量。
+
+用 66 句預先斷詞的小語料訓練，視窗 ±2 產生（中心詞 → 鄰居）訓練對，
+全 softmax cross-entropy + SGD。編碼維度 D=4，訓練完的 W1 每一列
+就是一個詞的 4 維詞向量（D=2 時 102 個詞塞進 2 維會塌縮、失去區分度，
+D=4 是實測後品質與訓練速度的甜蜜點）；要畫成散佈圖時再用 PCA 投影成 2D。
+&quot;&quot;&quot;
+import numpy as np
+
+CORPUS = &quot;&quot;&quot;南韓 男星 李鐘碩 與 歌手 IU李知恩 爆出 熱戀
+南韓 歌手 IU李知恩 推出 新專輯
+男星 李鐘碩 主演 新戲
+歌手 IU李知恩 獲得 大獎
+南韓 男星 主演 電影 爆出 好評
+我們 老師 今天 教 神經網路
+神經網路 會 預測 下一個 詞
+我們 今天 上課 學 文字接龍
+老師 說 模型 讀 愈多 資料 愈 聰明
+模型 會 預測 下一個 詞
+台灣 棒球隊 贏得 世界 冠軍
+台灣 珍珠奶茶 風靡 世界
+南韓 女星 與 男星 爆出 緋聞
+南韓 天團 來 台灣 開 演唱會
+南韓 電影 獲得 國際 大獎
+男星 與 女星 爆出 婚訊
+女星 主演 新戲 獲得 好評
+歌手 推出 新專輯 獲得 好評
+天團 推出 新專輯 風靡 世界
+李鐘碩 與 IU李知恩 合作 新戲
+IU李知恩 主演 電影 獲得 大獎
+新戲 獲得 觀眾 好評
+電影 獲得 觀眾 好評
+觀眾 說 新戲 很 好看
+記者 爆出 男星 與 歌手 熱戀
+記者 說 南韓 天團 要 來 台灣
+台灣 觀眾 喜歡 南韓 電影
+台灣 歌手 推出 新專輯
+世界 冠軍 是 台灣 棒球隊
+棒球隊 今天 贏得 比賽
+我們 今天 看 棒球 比賽
+我們 老師 說 神經網路 很 有趣
+老師 今天 教 我們 梯度下降
+梯度下降 會 降低 誤差
+神經網路 靠 梯度下降 學習
+模型 靠 資料 學習
+模型 讀 愈多 資料 愈 聰明
+資料 愈多 模型 愈 聰明
+我們 上課 學 神經網路
+學生 上課 學 文字接龍
+學生 說 文字接龍 很 有趣
+文字接龍 就是 預測 下一個 詞
+預測 下一個 詞 就是 自監督 學習
+自監督 學習 不用 人工 標註
+人工 標註 很 花 時間
+GPT 靠 文字接龍 學習
+GPT 讀 愈多 資料 愈 聰明
+GPT 會 預測 下一個 詞
+下一個 詞 由 機率 決定
+機率 大 的 詞 常 被 選中
+老師 說 GPT 就是 文字接龍
+我們 喜歡 上 老師 的 課
+珍珠奶茶 是 台灣 的 驕傲
+世界 都 喜歡 台灣 珍珠奶茶
+演唱會 門票 很 快 賣完
+天團 演唱會 門票 賣完
+歌手 在 演唱會 演唱 新歌
+新歌 獲得 歌迷 好評
+歌迷 喜歡 IU李知恩 的 新歌
+熱戀 消息 獲得 歌迷 祝福
+蘋果 很 好吃
+蘋果 是 好吃 的 水果
+我們 喜歡 吃 蘋果
+蘋果 推出 新手機
+蘋果 新手機 賣完
+新手機 獲得 好評&quot;&quot;&quot;
+
+WIN, D, LR, EPOCHS, SEED = 2, 4, 0.05, 60, 1
+
+sents = [line.split() for line in CORPUS.strip().split(&quot;\n&quot;)]
+vocab = sorted({w for s in sents for w in s})
+idx = {w: i for i, w in enumerate(vocab)}
+V = len(vocab)
+
+# skip-gram 訓練對：(中心詞, 視窗內的鄰居)
+pairs = np.array([
+    (idx[s[i]], idx[s[j]])
+    for s in sents
+    for i in range(len(s))
+    for j in range(max(0, i - WIN), min(len(s), i + WIN + 1))
+    if j != i
+])
+print(f&quot;詞彙量 V={V}，訓練對 {len(pairs)} 筆&quot;)
+
+rng = np.random.default_rng(SEED)
+W1 = rng.normal(0, 0.5, (V, D))   # 輸入層權重：訓練完就是詞向量！
+W2 = rng.normal(0, 0.5, (D, V))   # 輸出層權重：訓練完就丟掉
+
+for epoch in range(EPOCHS):
+    rng.shuffle(pairs)
+    loss = 0.0
+    for c, o in pairs:                    # c=中心詞、o=要猜的鄰居
+        h = W1[c]                         # one-hot 選中的那一列（前向傳播）
+        z = h @ W2
+        z -= z.max()
+        p = np.exp(z)
+        p /= p.sum()                      # softmax：對每個詞的預測機率
+        loss += -np.log(p[o] + 1e-12)     # cross-entropy
+        p[o] -= 1.0                       # 反向傳播（dz）
+        dW1 = p @ W2.T
+        W2 -= LR * np.outer(h, p)
+        W1[c] -= LR * dW1                 # 只有被選中的那一列會更新
+    if epoch % 10 == 0 or epoch == EPOCHS - 1:
+        print(f&quot;epoch {epoch:3d}  平均 loss = {loss / len(pairs):.4f}&quot;)
+
+def cos(a, b):
+    va, vb = W1[idx[a]], W1[idx[b]]
+    return va @ vb / (np.linalg.norm(va) * np.linalg.norm(vb) + 1e-12)
+
+def neighbors(w, k=4):
+    v = W1[idx[w]]
+    sims = W1 @ v / (np.linalg.norm(W1, axis=1) * np.linalg.norm(v) + 1e-12)
+    order = np.argsort(-sims)
+    return [(vocab[i], round(float(sims[i]), 2)) for i in order[1:k + 1]]
+
+print(&quot;\n=== 貓狗實驗（上下文相同的詞，權重被訓練得幾乎一樣）===&quot;)
+print(f&quot;cos(男星, 女星)     = {cos(&#x27;男星&#x27;, &#x27;女星&#x27;):+.2f}   ← 應接近 +1&quot;)
+print(f&quot;cos(熱戀, 緋聞)     = {cos(&#x27;熱戀&#x27;, &#x27;緋聞&#x27;):+.2f}   ← 應接近 +1&quot;)
+print(f&quot;cos(男星, 珍珠奶茶) = {cos(&#x27;男星&#x27;, &#x27;珍珠奶茶&#x27;):+.2f}   ← 不相關，應該低&quot;)
+
+print(&quot;\n=== 最近鄰 ===&quot;)
+for w in (&quot;男星&quot;, &quot;蘋果&quot;, &quot;GPT&quot;, &quot;台灣&quot;):
+    print(f&quot;{w} → {neighbors(w)}&quot;)
+
+print(&quot;\n=== PCA 投影成 2D（網頁版地圖用同樣的方法畫散佈圖）===&quot;)
+Wc = W1 - W1.mean(axis=0)
+U, S, Vt = np.linalg.svd(Wc, full_matrices=False)
+coords2d = U[:, :2] * S[:2]
+for w in (&quot;男星&quot;, &quot;女星&quot;, &quot;蘋果&quot;, &quot;台灣&quot;):
+    x, y = coords2d[idx[w]]
+    print(f&quot;{w}: ({x:+.2f}, {y:+.2f})&quot;)
+
+</pre></div>
   </section>
 </section>
 
@@ -1943,6 +2227,334 @@ document.getElementById('attnApple').addEventListener('click', () => {
   }
 });
 attnRender(ATTN_SENTS[0].split(' '), 0);
+
+/* ================= Tab6：word2vec 現場訓練 ================= */
+/* 詞彙表沿用 tab5 的 EMB（同一份語料），embedding 另外訓練 */
+const W2V = {
+  V: EMB.vocab.length, D: 4, WIN: 2, LR: 0.05, EPOCHS: 60,
+  pairs: [], W1: null, W2: null, epoch: 0, running: false, trained: false,
+};
+
+// 產生 skip-gram 訓練對
+for (const line of LM_LARGE) {
+  const s = line.split(' ');
+  for (let i = 0; i < s.length; i++)
+    for (let j = Math.max(0, i - W2V.WIN); j < Math.min(s.length, i + W2V.WIN + 1); j++)
+      if (j !== i) W2V.pairs.push([EMB.vidx[s[i]], EMB.vidx[s[j]]]);
+}
+
+function w2vInit() {
+  W2V.W1 = Array.from({ length: W2V.V }, () => Float64Array.from({ length: W2V.D }, () => (Math.random() - 0.5)));
+  W2V.W2 = Array.from({ length: W2V.D }, () => Float64Array.from({ length: W2V.V }, () => (Math.random() - 0.5)));
+  W2V.epoch = 0;
+  W2V.trained = false;
+  W2V.running = false;
+}
+
+function w2vCos(a, b) {
+  const va = W2V.W1[a], vb = W2V.W1[b];
+  let dp = 0, na = 0, nb = 0;
+  for (let k = 0; k < W2V.D; k++) { dp += va[k] * vb[k]; na += va[k] ** 2; nb += vb[k] ** 2; }
+  return dp / (Math.sqrt(na * nb) + 1e-12);
+}
+
+function w2vEpochOnce() {
+  // Fisher–Yates 洗牌
+  const P = W2V.pairs;
+  for (let i = P.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [P[i], P[j]] = [P[j], P[i]];
+  }
+  let loss = 0;
+  const { V, D, LR, W1, W2 } = W2V;
+  const z = new Float64Array(V);
+  for (const [c, o] of P) {
+    const h = W1[c];
+    let mx = -Infinity;
+    for (let v = 0; v < V; v++) {
+      let s = 0;
+      for (let k = 0; k < D; k++) s += h[k] * W2[k][v];
+      z[v] = s;
+      if (s > mx) mx = s;
+    }
+    let Z = 0;
+    for (let v = 0; v < V; v++) { z[v] = Math.exp(z[v] - mx); Z += z[v]; }
+    loss += -Math.log(z[o] / Z + 1e-12);
+    // 反向傳播：p - onehot
+    const dh = new Float64Array(D);
+    for (let v = 0; v < V; v++) {
+      const dz = z[v] / Z - (v === o ? 1 : 0);
+      for (let k = 0; k < D; k++) {
+        dh[k] += dz * W2[k][v];
+        W2[k][v] -= LR * dz * h[k];
+      }
+    }
+    for (let k = 0; k < D; k++) h[k] -= LR * dh[k];
+  }
+  return loss / P.length;
+}
+
+/* ---- 即時地圖 ---- */
+const w2vMapSvg = document.getElementById('w2vMapSvg');
+const w2vPts = [], w2vLbls = [];
+let w2vSelCircle = null;
+
+(function w2vBuildMap() {
+  for (let i = 0; i < W2V.V; i++) {
+    const c = svgEl('circle', { cx: 0, cy: 0, r: 4.5, class: 'pt' });
+    const t = svgEl('title', {});
+    t.textContent = EMB.vocab[i];
+    c.appendChild(t);
+    c.addEventListener('click', () => w2vPick(i, c));
+    w2vMapSvg.appendChild(c);
+    w2vPts.push(c);
+    if (EMB.freq[EMB.vocab[i]] >= 2) {
+      const lb = svgEl('text', { x: 0, y: 0 });
+      lb.textContent = EMB.vocab[i];
+      w2vMapSvg.appendChild(lb);
+      w2vLbls.push([i, lb]);
+    }
+  }
+})();
+
+/* D=4 的詞向量沒辦法直接當座標畫，用簡易 PCA（power iteration 取前兩主成分）投影成 2D */
+function w2vPCA2(vecs) {
+  const n = vecs.length, D = W2V.D;
+  const mean = new Float64Array(D);
+  for (const v of vecs) for (let k = 0; k < D; k++) mean[k] += v[k] / n;
+  const centered = vecs.map(v => v.map((x, k) => x - mean[k]));
+  // 共變異數矩陣 D×D
+  const cov = Array.from({ length: D }, () => new Float64Array(D));
+  for (const v of centered) for (let a = 0; a < D; a++) for (let b = 0; b < D; b++) cov[a][b] += v[a] * v[b] / n;
+  function powerIter(mat) {
+    let vec = new Float64Array(D).fill(1);
+    for (let it = 0; it < 40; it++) {
+      const nv = new Float64Array(D);
+      for (let a = 0; a < D; a++) for (let b = 0; b < D; b++) nv[a] += mat[a][b] * vec[b];
+      const norm = Math.sqrt(nv.reduce((s, x) => s + x * x, 0)) || 1;
+      for (let a = 0; a < D; a++) vec[a] = nv[a] / norm;
+    }
+    let lambda = 0;
+    const mv = new Float64Array(D);
+    for (let a = 0; a < D; a++) for (let b = 0; b < D; b++) mv[a] += mat[a][b] * vec[b];
+    for (let a = 0; a < D; a++) lambda += vec[a] * mv[a];
+    return { vec, lambda };
+  }
+  const { vec: v1, lambda: l1 } = powerIter(cov);
+  // 從共變異數矩陣扣掉第一主成分（deflation），再算第二主成分
+  const cov2 = cov.map((row, a) => row.map((x, b) => x - l1 * v1[a] * v1[b]));
+  const { vec: v2 } = powerIter(cov2);
+  return centered.map(v => [
+    v.reduce((s, x, k) => s + x * v1[k], 0),
+    v.reduce((s, x, k) => s + x * v2[k], 0),
+  ]);
+}
+
+function w2vRepaintMap() {
+  const proj = w2vPCA2(W2V.W1);
+  const xs = proj.map(p => p[0]), ys = proj.map(p => p[1]);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const PX = 46, PY = 26, W = 620, H = 470;
+  const sx = v => PX + (v - xmin) / (xmax - xmin || 1) * (W - 2 * PX);
+  const sy = v => PY + (v - ymin) / (ymax - ymin || 1) * (H - 2 * PY);
+  for (let i = 0; i < W2V.V; i++) {
+    w2vPts[i].setAttribute('cx', sx(xs[i]));
+    w2vPts[i].setAttribute('cy', sy(ys[i]));
+  }
+  for (const [i, lb] of w2vLbls) {
+    lb.setAttribute('x', sx(xs[i]) + 6);
+    lb.setAttribute('y', sy(ys[i]) + 4);
+  }
+}
+
+/* ---- 儀表 ---- */
+const w2vEpochEl = document.getElementById('w2vEpoch');
+const w2vProgEl = document.getElementById('w2vProg');
+const w2vLossEl = document.getElementById('w2vLoss');
+const w2vSimGoodEl = document.getElementById('w2vSimGood');
+const w2vSimBadEl = document.getElementById('w2vSimBad');
+const iA = EMB.vidx['男星'], iB = EMB.vidx['女星'], iC = EMB.vidx['珍珠奶茶'];
+
+function w2vRepaintMeters(loss) {
+  w2vEpochEl.textContent = `epoch ${W2V.epoch} / ${W2V.EPOCHS}`;
+  w2vProgEl.style.width = (W2V.epoch / W2V.EPOCHS * 100).toFixed(0) + '%';
+  w2vLossEl.textContent = loss == null ? '–' : loss.toFixed(3);
+  w2vSimGoodEl.textContent = w2vCos(iA, iB).toFixed(2);
+  w2vSimBadEl.textContent = w2vCos(iA, iC).toFixed(2);
+}
+
+/* ---- 訓練迴圈（rAF 分塊，每 frame 2 epochs） ---- */
+document.getElementById('w2vTrain').addEventListener('click', () => {
+  if (W2V.running) return;
+  if (W2V.trained) w2vResetAll();
+  W2V.running = true;
+  const step = () => {
+    let loss = null;
+    for (let k = 0; k < 2 && W2V.epoch < W2V.EPOCHS; k++) {
+      loss = w2vEpochOnce();
+      W2V.epoch++;
+    }
+    w2vRepaintMap();
+    w2vRepaintMeters(loss);
+    if (W2V.epoch < W2V.EPOCHS) requestAnimationFrame(step);
+    else {
+      W2V.running = false;
+      W2V.trained = true;
+      document.getElementById('w2vNbTitle').style.display = 'block';
+    }
+  };
+  requestAnimationFrame(step);
+});
+
+function w2vResetAll() {
+  w2vInit();
+  w2vRepaintMap();
+  w2vRepaintMeters(null);
+  document.getElementById('w2vNbTitle').style.display = 'none';
+  document.getElementById('w2vNeighbors').replaceChildren();
+  if (w2vSelCircle) { w2vSelCircle.classList.remove('sel'); w2vSelCircle = null; }
+}
+document.getElementById('w2vReset').addEventListener('click', () => {
+  if (!W2V.running) w2vResetAll();
+});
+
+/* ---- 訓練完點詞看最近鄰 ---- */
+function w2vPick(i, circle) {
+  if (!W2V.trained) return;
+  if (w2vSelCircle) w2vSelCircle.classList.remove('sel');
+  w2vSelCircle = circle;
+  circle.classList.add('sel');
+  const sims = EMB.vocab.map((_, j) => ({ j, s: j === i ? -2 : w2vCos(i, j) }))
+    .sort((a, b) => b.s - a.s).slice(0, 4);
+  const box = document.getElementById('w2vNeighbors');
+  box.replaceChildren();
+  const head = document.createElement('div');
+  head.className = 'w2v-nb-title';
+  head.textContent = EMB.vocab[i] + ' 的最近鄰：';
+  box.appendChild(head);
+  for (const { j, s } of sims) {
+    const row = document.createElement('div');
+    row.className = 'emb-nb';
+    const w = document.createElement('span');
+    w.className = 'w';
+    w.textContent = EMB.vocab[j];
+    const track = document.createElement('div');
+    track.className = 'lm-track';
+    const fill = document.createElement('div');
+    fill.className = 'lm-fill';
+    fill.style.width = (Math.max(0, s) * 100).toFixed(0) + '%';
+    track.appendChild(fill);
+    const pct = document.createElement('span');
+    pct.className = 'lm-pct';
+    pct.textContent = s.toFixed(2);
+    row.append(w, track, pct);
+    box.appendChild(row);
+  }
+}
+
+/* ---- 訓練資料製造機 ---- */
+const w2vSentSel = document.getElementById('w2vSent');
+const w2vPairTbody = document.querySelector('#w2vPairTable tbody');
+const w2vPairSummary = document.getElementById('w2vPairSummary');
+let w2vPairTimers = [];
+const W2V_DEMO_SENTS = [
+  '南韓 男星 李鐘碩 與 歌手 IU李知恩 爆出 熱戀',
+  '男星 與 女星 爆出 婚訊',
+  '南韓 女星 與 男星 爆出 緋聞',
+  '蘋果 推出 新手機',
+  '我們 老師 今天 教 神經網路',
+];
+W2V_DEMO_SENTS.forEach((s, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = s.replace(/ /g, '');
+  w2vSentSel.appendChild(opt);
+});
+document.getElementById('w2vExpand').addEventListener('click', () => {
+  w2vPairTimers.forEach(clearTimeout);
+  w2vPairTimers = [];
+  w2vPairTbody.replaceChildren();
+  w2vPairSummary.classList.remove('show');
+  const s = W2V_DEMO_SENTS[w2vSentSel.value].split(' ');
+  const rows = [];
+  for (let i = 0; i < s.length; i++)
+    for (let j = Math.max(0, i - W2V.WIN); j < Math.min(s.length, i + W2V.WIN + 1); j++)
+      if (j !== i) rows.push([s[i], s[j]]);
+  rows.forEach(([c, o], k) => {
+    const tr = document.createElement('tr');
+    tr.className = 'hidden-row';
+    const td1 = document.createElement('td');
+    td1.className = 'prefix';
+    td1.textContent = c + ' ⇒';
+    const td2 = document.createElement('td');
+    td2.className = 'nextword';
+    td2.textContent = o;
+    tr.append(td1, td2);
+    w2vPairTbody.appendChild(tr);
+    w2vPairTimers.push(setTimeout(() => {
+      tr.classList.remove('hidden-row');
+      if (k === rows.length - 1) {
+        w2vPairSummary.textContent = `✓ 這一句就生出 ${rows.length} 筆訓練對；整份 66 句語料共 ${W2V.pairs.length} 筆——全部免費、不用人工標註。`;
+        w2vPairSummary.classList.add('show');
+      }
+    }, 250 * (k + 1)));
+  });
+});
+
+/* ---- 網路結構圖 ---- */
+(function w2vBuildNet() {
+  const svg = document.getElementById('w2vNetSvg');
+  const IN_X = 110, HID_X = 420, OUT_X = 700, TOP = 58, GAP = 34;
+  const rows = Array.from({ length: 10 }, (_, i) => TOP + i * GAP);
+  const hidY = [130, 190, 250, 310];
+  const HOT = 2;   // 示意：第 3 顆 = 男星 = 1
+  // 邊（先畫墊底）
+  for (let i = 0; i < 10; i++) for (const hy of hidY) {
+    svg.appendChild(svgEl('line', {
+      x1: IN_X + 11, y1: rows[i], x2: HID_X - 16, y2: hy,
+      stroke: i === HOT ? 'var(--neg)' : 'var(--baseline)',
+      'stroke-width': i === HOT ? 3 : 0.8, opacity: i === HOT ? 0.95 : 0.5,
+    }));
+  }
+  for (const hy of hidY) for (let i = 0; i < 10; i++) {
+    svg.appendChild(svgEl('line', { x1: HID_X + 16, y1: hy, x2: OUT_X - 16, y2: rows[i], stroke: 'var(--baseline)', 'stroke-width': 0.8, opacity: 0.5 }));
+  }
+  // 輸入層（one-hot）
+  for (let i = 0; i < 10; i++) {
+    svg.appendChild(svgEl('circle', { cx: IN_X, cy: rows[i], r: 11, fill: i === HOT ? 'var(--neg)' : '#ffe9a8', stroke: '#6b6a66', 'stroke-width': 1.2 }));
+    const v = svgEl('text', { x: IN_X, y: rows[i] + 4, 'text-anchor': 'middle', 'font-size': 11, fill: i === HOT ? '#fff' : '#6b6a66', 'font-weight': i === HOT ? 700 : 400 });
+    v.textContent = i === HOT ? '1' : '0';
+    svg.appendChild(v);
+  }
+  const hotLbl = svgEl('text', { x: IN_X - 22, y: rows[HOT] + 4, 'text-anchor': 'end', class: 'note' });
+  hotLbl.textContent = '男星';
+  svg.appendChild(hotLbl);
+  // 隱藏層（D=4）
+  for (const hy of hidY) {
+    svg.appendChild(svgEl('circle', { cx: HID_X, cy: hy, r: 14, fill: '#c9e4f8', stroke: '#6b6a66', 'stroke-width': 1.4 }));
+  }
+  // 輸出層
+  for (let i = 0; i < 10; i++) {
+    svg.appendChild(svgEl('circle', { cx: OUT_X, cy: rows[i], r: 11, fill: '#f8b9b0', stroke: '#6b6a66', 'stroke-width': 1.2 }));
+  }
+  // 層標籤與紅字註解
+  const labels = [
+    [IN_X, 420, '輸入 one-hot（V=102，示意 10 顆）', 'layer-label'],
+    [HID_X, 420, '隱藏層 D=4（自己設定的編碼維度）', 'layer-label'],
+    [OUT_X, 420, 'softmax 猜鄰居（V=102）', 'layer-label'],
+    [(IN_X + HID_X) / 2, 36, '只有「男星」那一列權重被選中 → 訓練完，這一列＝男星的詞向量', 'note'],
+  ];
+  for (const [x, y, t, cls] of labels) {
+    const el = svgEl('text', { x, y, 'text-anchor': 'middle', class: cls });
+    el.textContent = t;
+    svg.appendChild(el);
+  }
+})();
+
+w2vInit();
+w2vRepaintMap();
+w2vRepaintMeters(null);
 
 
 /* ================= 主題切換 ================= */
