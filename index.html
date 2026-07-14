@@ -323,6 +323,37 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
 .lm-pct { width: 56px; text-align: right; font-size: 0.84rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .lm-end { color: var(--good-text); font-weight: 600; font-size: 0.9rem; margin-top: 8px; display: none; }
 .lm-end.show { display: block; }
+
+/* ---- Tab5：詞的地圖與注意力 ---- */
+.emb-layout { display: flex; gap: 14px; align-items: stretch; }
+@media (max-width: 860px) { .emb-layout { flex-direction: column; } }
+#embSvg { flex: 1; min-width: 0; height: auto; background: var(--neutral-mid); border-radius: 10px; border: 1px solid var(--border); }
+#embSvg text { font-size: 11px; fill: var(--text-secondary); pointer-events: none; }
+#embSvg circle.pt { fill: var(--series-1); fill-opacity: 0.75; cursor: pointer; }
+#embSvg circle.pt:hover, #embSvg circle.pt.sel { fill: var(--neg); fill-opacity: 1; }
+.emb-side { width: 230px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; }
+.emb-side h3 { font-size: 0.9rem; }
+.emb-side .picked { font-size: 1.05rem; font-weight: 700; color: var(--series-1); min-height: 1.5em; }
+.emb-nb { display: flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+.emb-nb .w { width: 74px; text-align: right; color: var(--text-primary); }
+.emb-nb .lm-pct { width: 44px; }
+.emb-side .placeholder { color: var(--text-muted); font-size: 0.82rem; line-height: 1.6; }
+
+.attn-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+#attnSvg { width: 100%; height: auto; }
+#attnSvg .attn-rect { fill: var(--surface-1); stroke: var(--border); rx: 6; cursor: pointer; }
+#attnSvg .attn-rect.sel { fill: var(--series-1); stroke: var(--series-1); }
+#attnSvg .attn-word { font-size: 15px; fill: var(--text-primary); pointer-events: none; }
+#attnSvg .attn-word.sel { fill: #fff; font-weight: 700; }
+#attnSvg path.arc { fill: none; stroke: var(--series-1); opacity: 0.8; }
+#attnSvg .attn-w { font-size: 11px; fill: var(--text-muted); pointer-events: none; }
+.attn-hint-inline { font-size: 0.8rem; color: var(--text-muted); margin: 4px 0 8px; }
+.attn-compare { display: none; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+.attn-compare.show { display: grid; }
+@media (max-width: 760px) { .attn-compare.show { grid-template-columns: 1fr; } }
+.attn-cmp-card { background: var(--neutral-mid); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.attn-cmp-card h4 { font-size: 0.85rem; margin-bottom: 6px; color: var(--text-secondary); }
+.attn-cmp-card svg { width: 100%; height: auto; }
 </style>
 <script>
   // 開頁前先套用已儲存的主題，避免畫面閃爍
@@ -341,6 +372,7 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
   <button class="tab-btn" id="tabBtn2" data-tab="tab2">② 旋鈕挑戰</button>
   <button class="tab-btn" id="tabBtn3" data-tab="tab3">③ 這頁怎麼做的</button>
   <button class="tab-btn" id="tabBtn4" data-tab="tab4">④ GPT 怎麼學</button>
+  <button class="tab-btn" id="tabBtn5" data-tab="tab5">⑤ 詞的地圖與注意力</button>
 </div>
 
 <div class="page">
@@ -627,10 +659,32 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
             並指出這正好補上教具缺的一塊：學生看完 tab ①② 一定會問「那 ChatGPT 是怎麼學的？」</li>
         <li class="ask">提出三段式設計（監督 vs 自監督對照／「一句變七題」動畫／可以玩的迷你接龍模型），
             再反問三個決策：例句用投影片原句還是換掉？互動要做到多深？要不要記進這頁實錄？</li>
-        <li>做出<strong>真的迷你語言模型</strong>：頁面內嵌兩組手寫語料（12 句 vs 60 句），
+        <li>做出<strong>真的迷你語言模型</strong>：頁面內嵌兩組手寫語料（12 句 vs 66 句），
             現場統計「每個詞後面接什麼、機率多少」，學生點詞接龍、看機率長條，
             切換語料親身體會「資料多、接得順」——延續全案「一切都是真的運算」的原則</li>
         <li class="test">瀏覽器實測動畫逐列出現、接龍機率合計 100%、自動接龍能走到句尾，推上 GitHub Pages</li>
+      </ul>
+    </div>
+
+    <div class="vibe-round">
+      <h3><span class="round-tag">第 8 輪</span>先問「我這樣理解對嗎」，再一起做出來</h3>
+      <div class="prompt-bubble">
+        <span class="who">🧑‍🏫 我們下的 prompt（大意）</span>
+        「我可以說 word embedding 是從<strong>所有語料</strong>中找出所有詞彙的關係後的編碼，
+        而 transformer 面對的是<strong>當下的句子</strong>中詞彙的互相關係嗎？
+        透過這樣的想法，可以再設計一個學習的 tab 嗎？如果不適合就說不適合。」
+      </div>
+      <div class="did-title">Claude Code 做了什麼</div>
+      <ul class="did-list">
+        <li>先回答問題本身：這個「全局身分證 vs 當下關係」的框架基本正確、適合教學，
+            並補上精確化說明（實際上 embedding 跟模型一起訓練、attention 用 Q/K/V 投影看整段上下文）</li>
+        <li class="test">答應之前先驗證做不做得出來：用 Python 原型確認 tab ④ 的小語料真能算出
+            有意義的詞向量（男星↔女星 cos 0.999、台灣↔珍珠奶茶同群），玩具 attention 也真能
+            讓「獲得」在不同句子注意不同對象——可行才進計畫</li>
+        <li class="ask">反問兩個決策：要不要加「蘋果」多義詞句組讓對比更強？attention 用弧線還是長條？</li>
+        <li>JS 開頁現場計算：共現統計 → PPMI → 特徵分解出詞向量，畫成可點擊的 2D 地圖；
+            注意力弧線也是即時用詞向量算的——「一切都是真運算」原則不破功</li>
+        <li class="test">驗證地圖聚類、蘋果對比、tab ④ 接龍不受新語料影響，推上 GitHub Pages</li>
       </ul>
     </div>
   </section>
@@ -715,7 +769,7 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
     <div class="lm-controls">
       <span style="font-size:0.85rem;color:var(--text-muted);">語料庫：</span>
       <label><input type="radio" name="lmCorpus" value="small" checked> 小語料（12 句）</label>
-      <label><input type="radio" name="lmCorpus" value="large"> 大語料（60 句）</label>
+      <label><input type="radio" name="lmCorpus" value="large"> 大語料（66 句）</label>
     </div>
     <details class="lm-corpus-view"><summary>看語料庫內容（模型只讀過這些句子）</summary><pre id="lmCorpusText"></pre></details>
     <div class="lm-sent" id="lmSent"></div>
@@ -732,6 +786,77 @@ button.selected { background: var(--series-1); border-color: var(--series-1); co
       這就是投影片說的「模型讀更多資料，發生不同字句知識的影響較勁」。
       GPT 的原理跟這完全一樣，只是語料是幾兆個詞、可調的「旋鈕」（參數）有幾千億顆——
       而那些旋鈕，就是用 tab ② 你玩過的梯度下降去轉的。</p>
+  </section>
+</section>
+
+<!-- ========== TAB 5：詞的地圖與注意力 ========== -->
+<section id="tab5" class="tab-panel">
+  <header>
+    <h1>詞的地圖與注意力 — embedding 看全語料，attention 看當下句子</h1>
+    <p>模型是怎麼「認識」一個詞的？分成兩層：<strong>word embedding</strong> 從<strong>所有語料</strong>統計出
+       詞與詞的關係，幫每個詞編一張固定的「身分證」（向量）；<strong>attention</strong> 則在處理
+       <strong>當下這個句子</strong>時，讓每個詞拿著身分證去看句子裡的其他詞、決定注意誰。
+       下面兩個實驗都是從 tab ④ 的語料<strong>現場算出來</strong>的。</p>
+  </header>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>兩層機制的分工 <small>（差在「看的範圍」）</small></h2>
+    <div class="ssl-compare">
+      <div class="ssl-card">
+        <h3>word embedding：全語料的身分證</h3>
+        <p style="font-size:0.86rem;line-height:1.7;color:var(--text-secondary);">
+          讀完<strong>所有句子</strong>，統計「誰常跟誰一起出現」，每個詞得到一個固定向量。
+          常出現在相似上下文的詞（男星／女星、台灣／珍珠奶茶）向量就相近——
+          訓練完成後，這張身分證就不變了。</p>
+        <span class="ssl-tag">🗺️ 全局・靜態——一詞一向量，走到哪帶到哪</span>
+      </div>
+      <div class="ssl-card">
+        <h3>attention：當下句子的關係</h3>
+        <p style="font-size:0.86rem;line-height:1.7;color:var(--text-secondary);">
+          處理句子時，每個詞去「看」句內其他詞，算出該注意誰、注意多少。
+          同一個「<strong>蘋果</strong>」，在「蘋果很<strong>好吃</strong>」和
+          「蘋果推出<strong>新手機</strong>」裡注意的對象完全不同——
+          詞的「當下意義」由句子決定。</p>
+        <span class="ssl-tag">🔦 局部・動態——同一個詞，每句注意的對象都不同</span>
+      </div>
+    </div>
+    <p class="hint" style="margin-top:10px;">更精確地說：真正的 transformer 裡 embedding 不是先訓練好才拿來用，
+      而是跟整個模型一起訓練；attention 看的也不只一句話，而是整段上下文，並且用學出來的
+      Q／K／V 投影與多頭機制。但「全局字典 → 當下關係」這個分工，就是它的核心直覺。</p>
+  </section>
+
+  <section class="panel" style="margin-bottom:16px;">
+    <h2>詞向量地圖 <small>（從 tab ④ 的語料現場統計、降到 2 維畫出來）</small></h2>
+    <p class="hint" style="margin-bottom:10px;">
+      沒有人教過模型「哪些詞是同類」——它只統計「誰常跟誰一起出現」，
+      同類的詞就自己聚在一起了。<strong>點任何一個詞</strong>，右側顯示跟它最像的詞。</p>
+    <div class="emb-layout">
+      <svg id="embSvg" viewBox="0 0 640 470" role="img" aria-label="詞向量 2D 散佈圖"></svg>
+      <div class="emb-side">
+        <h3>最近鄰（cos 相似度）</h3>
+        <div class="picked" id="embPicked"></div>
+        <div id="embNeighbors"><p class="placeholder">點地圖上的詞試試——例如「男星」「蘋果」「GPT」。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>注意力遊樂場 <small>（點一個詞，看它在這句話裡注意誰）</small></h2>
+    <div class="attn-controls">
+      <select id="attnSent"></select>
+      <button class="primary" id="attnApple">🍎 蘋果對比：同一個詞、兩種注意</button>
+    </div>
+    <p class="attn-hint-inline">弧線愈粗 = 注意力愈重（權重標在弧線上，含自己，全部加起來 = 100%）</p>
+    <svg id="attnSvg" viewBox="0 0 860 190"></svg>
+    <div class="lm-cands" id="attnBars" style="margin-top:6px;"></div>
+    <div class="attn-compare" id="attnCompare">
+      <div class="attn-cmp-card"><h4>「蘋果 很 好吃」裡的蘋果</h4><svg class="cmp-svg" viewBox="0 0 420 170"></svg></div>
+      <div class="attn-cmp-card"><h4>「蘋果 推出 新手機」裡的蘋果</h4><svg class="cmp-svg" viewBox="0 0 420 170"></svg></div>
+    </div>
+    <p class="hint" style="margin-top:12px;">
+      這是玩具版注意力：直接拿詞向量算內積再 softmax。真正的 transformer 會先把身分證
+      投影成 Q（我在找什麼）、K（我是什麼）、V（我能提供什麼）再算，而且有很多組「注意力頭」同時看
+      ——但流程一樣：<strong>先查全語料的身分證，再算當下句子的關係</strong>。</p>
   </section>
 </section>
 
@@ -1442,6 +1567,12 @@ const LM_LARGE = LM_SMALL.concat([
   '新歌 獲得 歌迷 好評',
   '歌迷 喜歡 IU李知恩 的 新歌',
   '熱戀 消息 獲得 歌迷 祝福',
+  '蘋果 很 好吃',
+  '蘋果 是 好吃 的 水果',
+  '我們 喜歡 吃 蘋果',
+  '蘋果 推出 新手機',
+  '蘋果 新手機 賣完',
+  '新手機 獲得 好評',
 ]);
 const LM_BOS = '<s>', LM_EOS = '</s>';
 
@@ -1572,6 +1703,245 @@ document.getElementById('lmAuto').addEventListener('click', () => {
   }, 300);
 });
 lmRebuild();
+
+
+/* ================= Tab5：詞的地圖與注意力 ================= */
+/* 詞向量：LM_LARGE 語料 → 視窗共現 → PPMI → 前 8 個特徵向量（現場計算） */
+const EMB = (() => {
+  const sents = LM_LARGE.map(s => s.split(' '));
+  const vocab = [...new Set(sents.flat())];
+  const vidx = Object.fromEntries(vocab.map((w, i) => [w, i]));
+  const V = vocab.length;
+  const freq = {};
+  sents.flat().forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+
+  // 視窗共現（左右 2 詞，權重 1/距離）
+  const C = Array.from({ length: V }, () => new Float64Array(V));
+  const WIN = 2;
+  for (const s of sents)
+    for (let i = 0; i < s.length; i++)
+      for (let j = Math.max(0, i - WIN); j < Math.min(s.length, i + WIN + 1); j++)
+        if (j !== i) C[vidx[s[i]]][vidx[s[j]]] += 1 / Math.abs(j - i);
+
+  // PPMI
+  const rowSum = C.map(r => r.reduce((a, b) => a + b, 0));
+  const total = rowSum.reduce((a, b) => a + b, 0);
+  const A = Array.from({ length: V }, () => new Float64Array(V));
+  for (let i = 0; i < V; i++)
+    for (let j = 0; j < V; j++)
+      if (C[i][j] > 0) {
+        const pmi = Math.log(C[i][j] * total / (rowSum[i] * rowSum[j]));
+        if (pmi > 0) A[i][j] = pmi;
+      }
+
+  // 對稱矩陣前 D 個特徵向量：power iteration + deflation
+  const D = 8;
+  const emb = Array.from({ length: V }, () => new Float64Array(D));
+  for (let d = 0; d < D; d++) {
+    let v = Float64Array.from({ length: V }, (_, i) => Math.sin(i * 12.9898 + d * 78.233) * 0.5);
+    for (let it = 0; it < 80; it++) {
+      const u = new Float64Array(V);
+      for (let i = 0; i < V; i++) {
+        let s = 0;
+        const Ai = A[i];
+        for (let j = 0; j < V; j++) s += Ai[j] * v[j];
+        u[i] = s;
+      }
+      let n = 0;
+      for (const x of u) n += x * x;
+      n = Math.sqrt(n) || 1;
+      for (let i = 0; i < V; i++) v[i] = u[i] / n;
+    }
+    // 特徵值（含正負）與縮放
+    let lam = 0;
+    for (let i = 0; i < V; i++) {
+      let s = 0;
+      for (let j = 0; j < V; j++) s += A[i][j] * v[j];
+      lam += v[i] * s;
+    }
+    const scale = Math.sqrt(Math.abs(lam));
+    for (let i = 0; i < V; i++) emb[i][d] = v[i] * scale;
+    // 消去已取出的成分
+    for (let i = 0; i < V; i++)
+      for (let j = 0; j < V; j++) A[i][j] -= lam * v[i] * v[j];
+  }
+  const norms = emb.map(e => Math.sqrt(e.reduce((a, x) => a + x * x, 0)) || 1);
+  const cos = (a, b) => {
+    let s = 0;
+    for (let k = 0; k < D; k++) s += emb[a][k] * emb[b][k];
+    return s / (norms[a] * norms[b]);
+  };
+  return { vocab, vidx, emb, freq, cos };
+})();
+
+/* ---- 5.2 詞向量地圖 ---- */
+const embSvg = document.getElementById('embSvg');
+const embPicked = document.getElementById('embPicked');
+const embNeighbors = document.getElementById('embNeighbors');
+let embSelCircle = null;
+
+(function buildEmbMap() {
+  const V = EMB.vocab.length;
+  const xs = EMB.emb.map(e => e[0]), ys = EMB.emb.map(e => e[1]);
+  const xmin = Math.min(...xs), xmax = Math.max(...xs);
+  const ymin = Math.min(...ys), ymax = Math.max(...ys);
+  const PX = 46, PY = 30, W = 640, H = 470;
+  const sx = v => PX + (v - xmin) / (xmax - xmin || 1) * (W - 2 * PX);
+  const sy = v => PY + (v - ymin) / (ymax - ymin || 1) * (H - 2 * PY);
+  for (let i = 0; i < V; i++) {
+    const cxv = sx(xs[i]), cyv = sy(ys[i]);
+    const c = svgEl('circle', { cx: cxv, cy: cyv, r: 4.5, class: 'pt' });
+    const t = svgEl('title', {});
+    t.textContent = EMB.vocab[i];
+    c.appendChild(t);
+    c.addEventListener('click', () => embPick(i, c));
+    embSvg.appendChild(c);
+    if (EMB.freq[EMB.vocab[i]] >= 2) {
+      const lb = svgEl('text', { x: cxv + 6, y: cyv + 4 });
+      lb.textContent = EMB.vocab[i];
+      embSvg.appendChild(lb);
+    }
+  }
+})();
+
+function embPick(i, circle) {
+  if (embSelCircle) embSelCircle.classList.remove('sel');
+  embSelCircle = circle;
+  if (circle) circle.classList.add('sel');
+  embPicked.textContent = EMB.vocab[i];
+  const sims = EMB.vocab.map((_, j) => ({ j, s: j === i ? -2 : EMB.cos(i, j) }))
+    .sort((a, b) => b.s - a.s).slice(0, 4);
+  embNeighbors.replaceChildren();
+  for (const { j, s } of sims) {
+    const row = document.createElement('div');
+    row.className = 'emb-nb';
+    const w = document.createElement('span');
+    w.className = 'w';
+    w.textContent = EMB.vocab[j];
+    const track = document.createElement('div');
+    track.className = 'lm-track';
+    const fill = document.createElement('div');
+    fill.className = 'lm-fill';
+    fill.style.width = (Math.max(0, s) * 100).toFixed(0) + '%';
+    track.appendChild(fill);
+    const pct = document.createElement('span');
+    pct.className = 'lm-pct';
+    pct.textContent = s.toFixed(2);
+    row.append(w, track, pct);
+    embNeighbors.appendChild(row);
+  }
+}
+
+/* ---- 5.3 注意力遊樂場 ---- */
+const ATTN_SENTS = [
+  '蘋果 很 好吃',
+  '蘋果 推出 新手機',
+  '歌手 IU李知恩 獲得 大獎',
+  '新戲 獲得 觀眾 好評',
+  '我們 喜歡 吃 蘋果',
+  '南韓 男星 李鐘碩 與 歌手 IU李知恩 爆出 熱戀',
+];
+const attnSvg = document.getElementById('attnSvg');
+const attnBars = document.getElementById('attnBars');
+const attnSentSel = document.getElementById('attnSent');
+const attnCompare = document.getElementById('attnCompare');
+
+function attnWeights(tokens, sel) {
+  const idxs = tokens.map(w => EMB.vidx[w]);
+  const q = idxs[sel];
+  const scores = idxs.map(i => 3 * EMB.cos(i, q));
+  const mx = Math.max(...scores);
+  const es = scores.map(s => Math.exp(s - mx));
+  const Z = es.reduce((a, b) => a + b, 0);
+  return es.map(e => e / Z);
+}
+
+/* 在指定 svg 畫「token 列 + 注意力弧線」；tokH = token 列的 y 位置 */
+function attnDraw(svg, tokens, sel, opts = {}) {
+  const vb = svg.viewBox.baseVal;
+  const W = vb.width, tokY = vb.height - 60;
+  svg.replaceChildren();
+  // token 位置：依字數配寬、置中
+  const widths = tokens.map(w => w.length * 16 + 22);
+  const gap = 12;
+  const totalW = widths.reduce((a, b) => a + b, 0) + gap * (tokens.length - 1);
+  let x = (W - totalW) / 2;
+  const centers = [];
+  const rects = [];
+  tokens.forEach((w, i) => {
+    const r = svgEl('rect', { x, y: tokY, width: widths[i], height: 34, rx: 8, class: 'attn-rect' + (i === sel ? ' sel' : '') });
+    const t = svgEl('text', { x: x + widths[i] / 2, y: tokY + 23, 'text-anchor': 'middle', class: 'attn-word' + (i === sel ? ' sel' : '') });
+    t.textContent = w;
+    if (opts.clickable) r.addEventListener('click', () => attnRender(tokens, i));
+    svg.append(r, t);
+    centers.push(x + widths[i] / 2);
+    rects.push(r);
+    x += widths[i] + gap;
+  });
+  // 弧線 + 權重標籤
+  const ws = attnWeights(tokens, sel);
+  ws.forEach((w, i) => {
+    if (i === sel) return;
+    const x1 = centers[sel], x2 = centers[i];
+    const lift = Math.min(110, 34 + Math.abs(x2 - x1) * 0.28);
+    const path = svgEl('path', {
+      d: `M ${x1} ${tokY - 2} Q ${(x1 + x2) / 2} ${tokY - lift} ${x2} ${tokY - 2}`,
+      class: 'arc', 'stroke-width': Math.max(0.6, w * 16),
+    });
+    svg.appendChild(path);
+    const lb = svgEl('text', { x: (x1 + x2) / 2, y: tokY - lift / 2 - 8, 'text-anchor': 'middle', class: 'attn-w' });
+    lb.textContent = (w * 100).toFixed(0) + '%';
+    svg.appendChild(lb);
+  });
+  return ws;
+}
+
+function attnRender(tokens, sel) {
+  const ws = attnDraw(attnSvg, tokens, sel, { clickable: true });
+  // 機率長條（含自己）
+  attnBars.replaceChildren();
+  tokens.map((w, i) => ({ w: w + (i === sel ? '（自己）' : ''), p: ws[i] }))
+    .sort((a, b) => b.p - a.p)
+    .forEach(({ w, p }) => {
+      const row = document.createElement('div');
+      row.className = 'lm-cand';
+      const b = document.createElement('button');
+      b.className = 'word';
+      b.disabled = true;
+      b.textContent = w;
+      const track = document.createElement('div');
+      track.className = 'lm-track';
+      const fill = document.createElement('div');
+      fill.className = 'lm-fill';
+      fill.style.width = (p * 100).toFixed(1) + '%';
+      track.appendChild(fill);
+      const pct = document.createElement('span');
+      pct.className = 'lm-pct';
+      pct.textContent = (p * 100).toFixed(1) + '%';
+      row.append(b, track, pct);
+      attnBars.appendChild(row);
+    });
+}
+
+ATTN_SENTS.forEach((s, i) => {
+  const opt = document.createElement('option');
+  opt.value = i;
+  opt.textContent = s.replace(/ /g, '');
+  attnSentSel.appendChild(opt);
+});
+attnSentSel.addEventListener('change', () => {
+  attnCompare.classList.remove('show');
+  attnRender(ATTN_SENTS[attnSentSel.value].split(' '), 0);
+});
+document.getElementById('attnApple').addEventListener('click', () => {
+  const shown = attnCompare.classList.toggle('show');
+  if (shown) {
+    const svgs = attnCompare.querySelectorAll('.cmp-svg');
+    attnDraw(svgs[0], '蘋果 很 好吃'.split(' '), 0);
+    attnDraw(svgs[1], '蘋果 推出 新手機'.split(' '), 0);
+  }
+});
+attnRender(ATTN_SENTS[0].split(' '), 0);
 
 
 /* ================= 主題切換 ================= */
